@@ -8,6 +8,8 @@ import scipy
 import tqdm as tqdm
 from scipy.sparse import spmatrix, find
 
+from recsys.eval.evaltools import rmse
+
 INITIALIZE_LATENT_FEATURES_SCALE = 0.005
 
 
@@ -15,7 +17,7 @@ class BaseModel(object):
     """
     Implementing SVD for recommendation systems (i.e the given data is sparse due to large amount of missing values)
     """
-    def __init__(self, learning_rate: float = 0.005, lr_decrease_factor: float = 0.9, regularization: float = 0.02, converge_threshold: float = 1e-4,
+    def __init__(self, learning_rate: float = 0.005, lr_decrease_factor: float = 0.99, regularization: float = 0.02, converge_threshold: float = 1e-4,
                  max_iterations: int = 30, score_sample_size: float = 100_000, random_seed: int = None):
         self.n_users: int = None
         self.n_items: int = None
@@ -46,7 +48,7 @@ class BaseModel(object):
         prev_score = self.__get_score(ratings)
         print(f"initial score: {prev_score}")
         num_iterations = 0
-        while (not self.__converged) or (num_iterations < self.max_iterations):
+        while (not self.__converged) and (num_iterations < self.max_iterations):
             print(f"start iteration {num_iterations}")
             start = time.time()
             for (u, i, r) in tqdm.tqdm(ratings, total=len(ratings)):
@@ -73,10 +75,15 @@ class BaseModel(object):
 
     def __get_score(self, ratings) -> float:
         ratings_sample = sample(ratings, self.score_sample_size)
-        return rmse(ratings_sample, self.model_parameters_)
+        r_true, r_pred = zip(*[(r, estimate_rating(u, i, self.model_parameters_)) for u, i, r in ratings_sample])
+        return rmse(r_true, r_pred)
 
     def __is_converged(self, prev_score: float, new_score: float) -> bool:
-        return abs(new_score - prev_score) <= self.converge_threshold
+        score_diff = prev_score - new_score
+        if score_diff <= 0:
+            return True
+
+        return abs(score_diff) <= self.converge_threshold
 
 
 class SVDModelParams(NamedTuple):
@@ -133,17 +140,6 @@ def estimate_rating(user: int, item: int, params: SVDModelParams) -> float:
 
     latent_product = np.dot(item_latent, user_latent)
     return mean_rating + user_bias + item_bias + latent_product
-
-
-def rmse(ratings: List[Tuple[int, int, int]], model_params: SVDModelParams) -> float:
-    sum_squares = sum(pow(r - estimate_rating(u, i, model_params), 2) for u, i, r in ratings)
-    return sqrt(float(sum_squares) / len(ratings))
-
-
-
-
-
-
 
 
 

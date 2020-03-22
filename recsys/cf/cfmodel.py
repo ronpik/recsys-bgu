@@ -1,20 +1,26 @@
 import pandas as pd
-from scipy.sparse import spmatrix
 
 from recsys.cf.basemodel import BaseModel
 from recsys.cf.combined import CombinedModel
 from recsys.cf.sentiment import SentimentModel
+from recsys.utils.data.yelp_dataset import prepare_data_for_cf
 
 
 class RecommenderSystem(object):
-    def __init__(self):
+    def __init__(self, train_data: pd.DataFrame, test_data: pd.DataFrame):
+        self.train_data = train_data
+        self.test_data = test_data
+
         self.base_model = None
         self.sentiment_model = None
         self.combined_model = None
 
-    def TrainBaseModel(self, data: spmatrix, n_latent: int, learning_rate: float = 0.005, regularization: float = 0.02):
+    def TrainBaseModel(self, n_latent: int):
+        print(f"number of latent features: {n_latent}")
+        train_mat, test_mat = prepare_data_for_cf(self.train_data, self.test_data
+                                                  )
         self.base_model = BaseModel()
-        self.base_model.fit(data, n_latent)
+        self.base_model.fit(train_mat, n_latent)
 
     def TrainSentimentModel(self):
         # TODO(train the model)
