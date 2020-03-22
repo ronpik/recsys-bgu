@@ -52,7 +52,8 @@ def prepare_data_for_cf(train_df: pd.DataFrame, test_df: pd.DataFrame) -> Tuple[
     print("convert TEST to sparse matrix")
     test_indices_df = test_df[[index_users_col, business_users_col, RATING_FIELD]]
     del test_df
-    test_mat = df_to_sparse(test_indices_df)
+    train_rows, train_cols = train_mat.shape
+    test_mat = df_to_sparse(test_indices_df, train_rows - 1, train_cols - 1)
     del test_indices_df
 
     return train_mat, test_mat
@@ -68,15 +69,32 @@ def index_by_unique_elements(data: pd.DataFrame, column_name: str, new_col_name:
     data[new_col_name] = indexed_col
 
 
-def df_to_sparse(df: pd.DataFrame) -> spmatrix:
+def df_to_sparse(df: pd.DataFrame, max_row_index: int = None, max_col_index: int = None) -> spmatrix:
     """
     convert data frame into sparse matrix. by convention df should contains only 3 columns -
     the first for the row index, the second for the col index and the last for the value.
-    :param df:
     :return:
     """
+    mask = np.full(df.shape[0], fill_value=True)
+    if max_row_index is not None:
+        rows_in_range_mask = df.iloc[:, 0] <= max_row_index
+        mask = np.logical_and(mask, rows_in_range_mask)
+    else:
+        max_row_index = df.iloc[:, 0].max()
+
+    if max_col_index is not None:
+        cols_in_range_mask = df.iloc[:, 1] <= max_col_index
+        mask = np.logical_and(mask, cols_in_range_mask)
+    else:
+        max_col_index = df.iloc[:, 1].max()
+
+    df = df[mask]
+
     print("\tdf to coo matrix")
-    coo_mat = coo_matrix(df, dtype=np.uint8)
+    rows = df.iloc[:, 0]
+    cols = df.iloc[:, 1]
+    data = df.iloc[:, 2]
+    coo_mat = coo_matrix((data, (rows, cols)), shape=(max_row_index + 1, max_col_index + 1))
     print("\tcoo to csr matrix")
     return coo_mat.tocsr()
 
