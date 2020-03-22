@@ -94,7 +94,7 @@ def df_to_sparse(df: pd.DataFrame, max_row_index: int = None, max_col_index: int
     rows = df.iloc[:, 0]
     cols = df.iloc[:, 1]
     data = df.iloc[:, 2]
-    coo_mat = coo_matrix((data, (rows, cols)), shape=(max_row_index, max_col_index))
+    coo_mat = coo_matrix((data, (rows, cols)), shape=(max_row_index + 1, max_col_index + 1))
     print("\tcoo to csr matrix")
     return coo_mat.tocsr()
 
