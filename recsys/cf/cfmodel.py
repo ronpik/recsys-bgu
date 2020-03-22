@@ -12,9 +12,9 @@ class RecommenderSystem(object):
         self.sentiment_model = None
         self.combined_model = None
 
-    def TrainBaseModel(self, data: spmatrix, p: int, q: int, learning_rate: float = 0.4, regularization: float = 10):
+    def TrainBaseModel(self, data: spmatrix, n_latent: int, learning_rate: float = 0.005, regularization: float = 0.02):
         self.base_model = BaseModel()
-        self.base_model.fit(data, p, q)
+        self.base_model.fit(data, n_latent)
 
     def TrainSentimentModel(self):
         # TODO(train the model)
