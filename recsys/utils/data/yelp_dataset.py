@@ -15,8 +15,11 @@ BUSINESS_ID_FIELD = "business_id"
 RATING_FIELD = "stars"
 
 
-def load_yelp_dataset(path: str) -> pd.DataFrame:
-    df = pd.read_csv(path, header=0, usecols=COLS_NO_TEXT, index_col=0)
+def load_yelp_dataset(path: str, use_text=False) -> pd.DataFrame:
+    if use_text:
+        df = pd.read_csv(path, header=0, index_col=0)
+    else:
+        df = pd.read_csv(path, header=0, usecols=COLS_NO_TEXT, index_col=0)
     print(f"loaded data with size: {df.shape}")
     df.dropna(axis=0, inplace=True)
     print(f"filtered NaN values")
