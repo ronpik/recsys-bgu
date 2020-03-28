@@ -23,8 +23,8 @@ class RecommenderSystem(object):
         self.base_model.fit(train_mat, n_latent)
 
     def TrainSentimentModel(self):
-        # TODO(train the model)
         self.sentiment_model = SentimentModel()
+        self.sentiment_model.fit(self.train_data.drop('stars'), self.train_data.stars)
 
     def TrainCombinedModel(self):
         """
