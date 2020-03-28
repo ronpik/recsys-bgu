@@ -1,10 +1,10 @@
 import sys
 import time
 
-sys.path.append('/Users/shaimeital/code/thesis/recsys-bgu')
+sys.path.append('../recsys')
 from recsys.cf import RecommenderSystem
 import pandas as pd
-from recsys.utils.data.yelp_dataset import load_yelp_dataset
+from recsys.utils.data.yelp_dataset import load_yelp_dataset, split_dataset
 from recsys.cf.sentiment import generate_feature_set
 
 
@@ -20,7 +20,8 @@ if __name__ == "__main__":
     print(f"load test data: {train_path}")
     test_df = load_yelp_dataset(test_path, use_text=True)
     end = time.time()
-    print(f"loading data took {end - start}s")
+    print(f"loading data took {end - start:.2f}s")
+
     print(f"train data loaded with shape: {train_df.shape}")
     print(f"test data loaded with shape: {test_df.shape}")
 
