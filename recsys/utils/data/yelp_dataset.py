@@ -113,17 +113,18 @@ def split_dataset(df: pd.DataFrame, \
     users size the the ratio of users to sample items from, and the items_per_user is the ratio of elements to split from the main dataset
     for each of the chosen users.
     """
-    if users_size >= 1:
+    if items_per_user >= 1:
         raise ValueError( \
             f"users_size should be a number greater than 0 and smaller than 1: {items_per_user}")
     
     random_generator = random.Random(random_seed)
 
+    unique_users = df[USER_ID_FIELD].unique()
     # ensure that users_size is an absolute size int (not a ratio)
     if users_size < 1:
-        users_size = int(users_size * len(df.index))
+        users_size = int(users_size * len(unique_users))
 
-    users_sample = set(np.random.choice(df[USER_ID_FIELD].unique()))
+    users_sample = set(np.random.choice(unique_users, users_size, replace=False))
     available_users = set()
     def choose_item_rating(user: str)  -> bool:
         if user in users_sample:
