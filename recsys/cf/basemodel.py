@@ -148,6 +148,5 @@ def estimate_rating(user: int, item: int, params: SVDModelParams) -> float:
 def save_svd_model(svd_model: BaseModel, filename: str):
     pass
 
-def load_svd_model(filename: str): BaseModel:
+def load_svd_model(filename: str) -> BaseModel:
     pass
-
