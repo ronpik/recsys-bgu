@@ -59,7 +59,8 @@ class BaseModel(object):
             for (u, i, r) in tqdm.tqdm(train_ratings[:1_000_000], total=1_000_000):
                 r_est = estimate_rating(u, i, self.model_parameters_)
                 err = r - r_est
-                self.model_parameters_.update(u, i, err, self.regularization, self.__adaptive_learning_rate)
+                user_items_set = self.model_parameters_.user_items_mapping[u]
+                self.model_parameters_.update(u, i, user_items_set, err, self.regularization, self.__adaptive_learning_rate)
 
             end = time.time()
             print(f"iteration {num_iterations} took {int(end - start)} sec")
@@ -91,20 +92,27 @@ class BaseModel(object):
 
 
 class SVDModelParams(NamedTuple):
+    # non update params
     mean_rating: float
+    user_items_mapping = None # TODO initialize as dictionary
+
+    # update params
     users_bias: np.ndarray
     items_bias: np.ndarray
     users_latent_features: np.ndarray
     items_latent_features: np.ndarray
+    itemspp: np.ndarray
 
-    def update(self, user: int, item: int, err: float, regularization: float, learning_rate: float):
+    def update(self, user: int, item: int, user_items_set: List[int], err: float, regularization: float, learning_rate: float):
         self.users_bias[user] += learning_rate * (err - (regularization * self.users_bias[user]))
         self.items_bias[item] += learning_rate * (err - (regularization * self.items_bias[item]))
 
-        user_latent_features = self.users_latent_features[user]
-        item_latent_features = self.items_latent_features[item]
+        user_latent_features = self.users_latent_features[user] # p_i
+        item_latent_features = self.items_latent_features[item] # q_i
         self.users_latent_features[user] += learning_rate * ((err * item_latent_features) - (regularization * user_latent_features))
         self.items_latent_features[item] += learning_rate * ((err * user_latent_features) - (regularization * item_latent_features))
+        for i in user_items_set:
+            self.itemspp[i] += learning_rate * ((err * item_latent_features) / np.sqrt(len(user_items_set))) - (regularization * self.itemspp[i])
 
 
 def initialize_parameters(users_items_matrix: spmatrix, latent_dim: int) -> SVDModelParams:
@@ -122,18 +130,26 @@ def initialize_parameters(users_items_matrix: spmatrix, latent_dim: int) -> SVDM
 
     scale = INITIALIZE_LATENT_FEATURES_SCALE
     n_users, n_items = users_items_matrix.shape
+    
     latent_user_features = np.random.normal(0, scale, n_users * latent_dim)\
         .reshape(n_users, latent_dim)
+    
     latent_item_features = np.random.normal(0, scale, n_items * latent_dim)\
         .reshape(n_items, latent_dim)
+    
+    latent_itempp = np.random.normal(0, scale, n_items * latent_dim)\
+        .reshape(n_items, latent_dim)
+
+    user_items_mapping = None # TODO  create a mapping between a user index and the items he has rated
 
     return SVDModelParams(mean_rating,
+                          user_items_mapping,
                           users_mean_rating,
                           items_mean_rating,
                           latent_user_features,
-                          latent_item_features
+                          latent_item_features,
+                          latent_itempp
                           )
-
 
 def estimate_rating(user: int, item: int, params: SVDModelParams) -> float:
     mean_rating = params.mean_rating
@@ -141,7 +157,14 @@ def estimate_rating(user: int, item: int, params: SVDModelParams) -> float:
     item_bias = params.items_bias[item]
     user_latent = params.users_latent_features[user]
     item_latent = params.items_latent_features[item]
+    user_items_set = params.user_items_mapping[user]
 
+    user_items_mask = np.asarray(user_items_set)  # list of all items taht 'user' has rated.
+    itemspp = np.sum(params.itemspp[user_items_mask], axis=1)   # sum over the rows
+    itemspp / len(np.sqrt(user_items_set))
+
+    user_latent += itemspp
+    
     latent_product = np.dot(item_latent, user_latent)
     return mean_rating + user_bias + item_bias + latent_product
 
