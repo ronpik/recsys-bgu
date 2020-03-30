@@ -3,12 +3,22 @@ import pandas as pd
 from recsys.cf.basemodel import BaseModel
 from recsys.cf.combined import CombinedModel
 from recsys.cf.sentiment import SentimentModel
-from recsys.utils.data.yelp_dataset import prepare_data_for_cf
+from recsys.utils.data.yelp_dataset import prepare_data_for_cf, split_dataset
+import time
 
 
 class RecommenderSystem(object):
-    def __init__(self, train_data: pd.DataFrame, test_data: pd.DataFrame):
-        self.train_data = train_data
+
+    VALIDATION_SPLIT_RANDOM_SEED = 0.4
+    VALIDATION_USERS_SIZE = 0.5
+    VALIDATION_ITEMS_PER_USER_SIZE = 0.3
+
+    def __init__(self, train_data: pd.DataFrame, test_data: pd.DataFrame): 
+        self.train_data, self.validation_data = split_dataset( \
+            train_data, \
+            self.VALIDATION_USERS_SIZE, \
+            self.VALIDATION_ITEMS_PER_USER_SIZE \
+        )
         self.test_data = test_data
 
         self.base_model = None
@@ -17,10 +27,9 @@ class RecommenderSystem(object):
 
     def TrainBaseModel(self, n_latent: int):
         print(f"number of latent features: {n_latent}")
-        train_mat, test_mat = prepare_data_for_cf(self.train_data, self.test_data
-                                                  )
+        train_mat, validation_mat = prepare_data_for_cf(self.train_data, self.validation_data)
         self.base_model = BaseModel()
-        self.base_model.fit(train_mat, n_latent)
+        self.base_model.fit(train_mat, validation_mat, n_latent)
 
     def TrainSentimentModel(self):
         self.sentiment_model = SentimentModel()

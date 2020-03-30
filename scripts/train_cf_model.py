@@ -18,12 +18,6 @@ if __name__ == "__main__":
     end = time.time()
     print(f"loading data took {end - start:.2f}s")
 
-    print("splitting train to validation")
-    start = time.time()
-    train_df, validation_df = split_dataset(train_df, 0.5, 0.2)
-    end = time.time()
-    print(f"splitting to validation took {end - start:.2f}sec")
-
     print(f"train data loaded with shape: {train_df.shape}")
     print(f"test data loaded with shape: {test_df.shape}")
 
