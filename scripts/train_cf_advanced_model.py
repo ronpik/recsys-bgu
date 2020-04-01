@@ -27,9 +27,7 @@ print(f"train data loaded with shape: {train_df.shape}")
 print(f"test data loaded with shape: {test_df.shape}")
 
 CFModel = RecommenderSystem(train_df, test_df)
-user_item_mapping = {f'{name}': list(group.business_id) for name, group in test_df.groupby('user_id')}
-
-CFModel.TrainAdvancedModel(num_latent_features, user_item_mapping)
+CFModel.TrainAdvancedModel(num_latent_features)
 
 #tests
 
