@@ -1,7 +1,8 @@
+import sys
 sys.path.append('/Users/shaimeital/code/thesis/recsys-bgu/')
 
 
-import sys
+
 import time
 
 from recsys.cf import RecommenderSystem
