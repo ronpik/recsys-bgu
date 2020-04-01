@@ -32,11 +32,11 @@ class RecommenderSystem(object):
         self.base_model = BaseModel()
         self.base_model.fit(train_mat, validation_mat, n_latent)
 
-    def TrainAdvancedModel(self, n_latent: int, user_item_mapping:dict):
+    def TrainAdvancedModel(self, n_latent: int):
         print(f"number of latent features: {n_latent}")
         train_mat, validation_mat = prepare_data_for_cf(self.train_data, self.validation_data)
         self.advanced_model = AdvancedModel()
-        self.advanced_model.fit(train_mat, validation_mat, n_latent, user_item_mapping)
+        self.advanced_model.fit(train_mat, validation_mat, n_latent)
 
     def TrainSentimentModel(self):
         self.sentiment_model = SentimentModel()
