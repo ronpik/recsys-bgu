@@ -13,7 +13,7 @@ from recsys.eval.evaltools import rmse
 INITIALIZE_LATENT_FEATURES_SCALE = 0.005
 
 
-class BaseModel(object):
+class AdvancedModel(object):
     """
     Implementing SVD for recommendation systems (i.e the given data is sparse due to large amount of missing values)
     """
@@ -35,11 +35,11 @@ class BaseModel(object):
 
         self.random = Random(random_seed)
 
-    def fit(self, train_data: spmatrix, validation_data: spmatrix, n_latent: int):
+    def fit(self, train_data: spmatrix, validation_data: spmatrix, n_latent: int, user_items_mapping:dict):
         self.n_users, self.n_items = train_data.shape
         self.n_latent = n_latent
         print("initializing model parameters")
-        self.model_parameters_ = initialize_parameters(train_data, n_latent)
+        self.model_parameters_ = initialize_parameters(train_data, n_latent, user_items_mapping)
 
         # user, item, rating = scipy.sparse.find(train_data)
         train_ratings = list(zip(*scipy.sparse.find(train_data)))
@@ -94,7 +94,7 @@ class BaseModel(object):
 class SVDModelParams(NamedTuple):
     # non update params
     mean_rating: float
-    user_items_mapping = None # TODO initialize as dictionary
+    user_items_mapping:dict
 
     # update params
     users_bias: np.ndarray
@@ -115,7 +115,7 @@ class SVDModelParams(NamedTuple):
             self.itemspp[i] += learning_rate * ((err * item_latent_features) / np.sqrt(len(user_items_set))) - (regularization * self.itemspp[i])
 
 
-def initialize_parameters(users_items_matrix: spmatrix, latent_dim: int) -> SVDModelParams:
+def initialize_parameters(users_items_matrix: spmatrix, latent_dim: int, user_items_mapping:dict) -> SVDModelParams:
     user, item, rating = find(users_items_matrix)
 
     mean_rating = users_items_matrix.sum() / len(rating)
@@ -139,8 +139,6 @@ def initialize_parameters(users_items_matrix: spmatrix, latent_dim: int) -> SVDM
     
     latent_itempp = np.random.normal(0, scale, n_items * latent_dim)\
         .reshape(n_items, latent_dim)
-
-    user_items_mapping = None # TODO  create a mapping between a user index and the items he has rated
 
     return SVDModelParams(mean_rating,
                           user_items_mapping,
@@ -168,8 +166,8 @@ def estimate_rating(user: int, item: int, params: SVDModelParams) -> float:
     latent_product = np.dot(item_latent, user_latent)
     return mean_rating + user_bias + item_bias + latent_product
 
-def save_svd_model(svd_model: BaseModel, filename: str):
+def save_svd_model(svd_model: AdvancedModel, filename: str):
     pass
 
-def load_svd_model(filename: str) -> BaseModel:
+def load_svd_model(filename: str) -> AdvancedModel:
     pass

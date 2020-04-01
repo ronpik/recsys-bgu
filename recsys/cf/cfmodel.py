@@ -1,6 +1,7 @@
 import pandas as pd
 
 from recsys.cf.basemodel import BaseModel
+from recsys.cf.advancedmodel import AdvancedModel
 from recsys.cf.combined import CombinedModel
 from recsys.cf.sentiment import SentimentModel
 from recsys.utils.data.yelp_dataset import prepare_data_for_cf, split_dataset
@@ -30,6 +31,12 @@ class RecommenderSystem(object):
         train_mat, validation_mat = prepare_data_for_cf(self.train_data, self.validation_data)
         self.base_model = BaseModel()
         self.base_model.fit(train_mat, validation_mat, n_latent)
+
+    def TrainAdvancedModel(self, n_latent: int, user_item_mapping:dict):
+        print(f"number of latent features: {n_latent}")
+        train_mat, validation_mat = prepare_data_for_cf(self.train_data, self.validation_data)
+        self.advanced_model = AdvancedModel()
+        self.advanced_model.fit(train_mat, validation_mat, n_latent, user_item_mapping)
 
     def TrainSentimentModel(self):
         self.sentiment_model = SentimentModel()
