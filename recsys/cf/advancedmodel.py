@@ -7,6 +7,8 @@ import numpy as np
 import scipy
 import tqdm as tqdm
 from scipy.sparse import spmatrix, find
+from itertools import groupby
+from operator import itemgetter
 
 from recsys.eval.evaltools import rmse
 
@@ -35,11 +37,11 @@ class AdvancedModel(object):
 
         self.random = Random(random_seed)
 
-    def fit(self, train_data: spmatrix, validation_data: spmatrix, n_latent: int, user_items_mapping:dict):
+    def fit(self, train_data: spmatrix, validation_data: spmatrix, n_latent: int):
         self.n_users, self.n_items = train_data.shape
         self.n_latent = n_latent
         print("initializing model parameters")
-        self.model_parameters_ = initialize_parameters(train_data, n_latent, user_items_mapping)
+        self.model_parameters_ = initialize_parameters(train_data, n_latent)
 
         # user, item, rating = scipy.sparse.find(train_data)
         train_ratings = list(zip(*scipy.sparse.find(train_data)))
@@ -74,6 +76,7 @@ class AdvancedModel(object):
             # update values for the next iteration
             self.__adaptive_learning_rate *= self.lr_decrease_factor
             num_iterations += 1
+
 
     def predict(self, data: np.ndarray) -> Sequence[float]:
         pass
@@ -115,7 +118,7 @@ class SVDModelParams(NamedTuple):
             self.itemspp[i] += learning_rate * ((err * item_latent_features) / np.sqrt(len(user_items_set))) - (regularization * self.itemspp[i])
 
 
-def initialize_parameters(users_items_matrix: spmatrix, latent_dim: int, user_items_mapping:dict) -> SVDModelParams:
+def initialize_parameters(users_items_matrix: spmatrix, latent_dim: int) -> SVDModelParams:
     user, item, rating = find(users_items_matrix)
 
     mean_rating = users_items_matrix.sum() / len(rating)
@@ -139,6 +142,8 @@ def initialize_parameters(users_items_matrix: spmatrix, latent_dim: int, user_it
     
     latent_itempp = np.random.normal(0, scale, n_items * latent_dim)\
         .reshape(n_items, latent_dim)
+    
+    user_items_mapping = create_user_item_mapping(users_items_matrix)
 
     return SVDModelParams(mean_rating,
                           user_items_mapping,
@@ -158,8 +163,8 @@ def estimate_rating(user: int, item: int, params: SVDModelParams) -> float:
     user_items_set = params.user_items_mapping[user]
 
     user_items_mask = np.asarray(user_items_set)  # list of all items taht 'user' has rated.
-    itemspp = np.sum(params.itemspp[user_items_mask], axis=1)   # sum over the rows
-    itemspp / len(np.sqrt(user_items_set))
+    itemspp = np.sum(params.itemspp[user_items_mask], axis=0)   # sum over the rows
+    itemspp /= len(np.sqrt(user_items_set))
 
     user_latent += itemspp
     
@@ -171,3 +176,9 @@ def save_svd_model(svd_model: AdvancedModel, filename: str):
 
 def load_svd_model(filename: str) -> AdvancedModel:
     pass
+
+def create_user_item_mapping(train_data: spmatrix) -> dict:
+    triplets = list(zip(*find(train_data)))
+    return {user_index: [record[1] for record in item_ratings]
+                        for user_index, item_ratings in groupby(triplets, key=itemgetter(0))} 
+    
