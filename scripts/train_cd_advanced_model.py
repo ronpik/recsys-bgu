@@ -1,7 +1,9 @@
-sys.path.append('/Users/shaimeital/code/thesis/recsys-bgu/')
 
 
 import sys
+import os
+module_dir = os.path.abspath("./../")
+sys.path.append(module_dir)
 import time
 
 from recsys.cf import RecommenderSystem
