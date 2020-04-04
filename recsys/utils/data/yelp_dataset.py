@@ -15,6 +15,9 @@ USER_ID_FIELD = "user_id"
 BUSINESS_ID_FIELD = "business_id"
 RATING_FIELD = "stars"
 
+# sampling users for validation
+SPLIT_AVAILABLE = 2
+
 
 def load_yelp_dataset(path: str, use_text=False) -> pd.DataFrame:
     if use_text:
@@ -36,11 +39,11 @@ def prepare_data_for_cf(train_df: pd.DataFrame, test_df: pd.DataFrame) -> Tuple[
 
     print("index users")
     index_users_col = "user_index"
-    index_by_unique_elements(merged_df, USER_ID_FIELD, index_users_col)
+    index_by_unique_elements(merged_df, USER_ID_FIELD)
 
     print("index business ids")
     business_users_col = "business_index"
-    index_by_unique_elements(merged_df, BUSINESS_ID_FIELD, business_users_col)
+    index_by_unique_elements(merged_df, BUSINESS_ID_FIELD)
 
     print("resplit to train and test")
     train_df = merged_df[:train_size]
@@ -48,13 +51,15 @@ def prepare_data_for_cf(train_df: pd.DataFrame, test_df: pd.DataFrame) -> Tuple[
     del merged_df
 
     print("convert TRAIN to sparse matrix")
-    train_indices_df = train_df[[index_users_col, business_users_col, RATING_FIELD]]
+    train_indices_df = train_df[[
+        index_users_col, business_users_col, RATING_FIELD]]
     del train_df
     train_mat = df_to_sparse(train_indices_df)
     del train_indices_df
 
     print("convert TEST to sparse matrix")
-    test_indices_df = test_df[[index_users_col, business_users_col, RATING_FIELD]]
+    test_indices_df = test_df[[index_users_col,
+        business_users_col, RATING_FIELD]]
     del test_df
     train_rows, train_cols = train_mat.shape
     test_mat = df_to_sparse(test_indices_df, train_rows - 1, train_cols - 1)
@@ -63,14 +68,41 @@ def prepare_data_for_cf(train_df: pd.DataFrame, test_df: pd.DataFrame) -> Tuple[
     return train_mat, test_mat
 
 
-def index_by_unique_elements(data: pd.DataFrame, column_name: str, new_col_name: str):
+def reindex_data(train_df: pd.DataFrame, test_df: pd.DataFrame) -> Tuple[pd.DataFrame, pd.DataFrame]:
+    train_size = train_df.shape[0]
+    merged_df = train_df.append(test_df)
+    del train_df
+    del test_df
+
+    print("index users")
+    index_by_unique_elements(merged_df, USER_ID_FIELD)
+    print("index business ids")
+    index_by_unique_elements(merged_df, BUSINESS_ID_FIELD)
+    print("resplit to train and test")
+    train_df = merged_df[:train_size]
+    test_df = merged_df[train_size:]
+    del merged_df
+
+    print("remove records from test that doesn't occur in train")
+    max_user_index = np.max(train_df[USER_ID_FIELD])
+    max_item_index = np.max(train_df[BUSINESS_ID_FIELD])
+
+    test_mask_by_users = test_df[USER_ID_FIELD] <= max_user_index
+    test_mask_by_items = test_df[BUSINESS_ID_FIELD] <= max_item_index
+    test_mask = np.logical_and(test_mask_by_users, test_mask_by_items)
+    test_df = test_df[test_mask]
+    return train_df, test_df
+
+
+def index_by_unique_elements(data: pd.DataFrame, column_name: str):
     """
     assign index to each element and integrate into the data-frame.
     :return:
     """
     indices: Dict[str, int] = {}
-    indexed_col: List[int] = [indices.setdefault(e, len(indices)) for e in data[column_name]]
-    data[new_col_name] = indexed_col
+    indexed_col: List[int] = [indices.setdefault(
+        e, len(indices)) for e in data[column_name]]
+    data[column_name] = np.array(indexed_col, dtype=np.uint32)
 
 
 def df_to_sparse(df: pd.DataFrame, max_row_index: int = None, max_col_index: int = None) -> spmatrix:
@@ -98,13 +130,15 @@ def df_to_sparse(df: pd.DataFrame, max_row_index: int = None, max_col_index: int
     rows = df.iloc[:, 0]
     cols = df.iloc[:, 1]
     data = df.iloc[:, 2]
-    coo_mat = coo_matrix((data, (rows, cols)), shape=(max_row_index + 1, max_col_index + 1))
+    coo_mat = coo_matrix((data, (rows, cols)), shape=(
+        max_row_index + 1, max_col_index + 1))
     print("\tcoo to csr matrix")
     return coo_mat.tocsr()
 
-def split_dataset(df: pd.DataFrame, \
-    users_size: float, \
-    items_per_user: float, \
+
+def split_dataset(df: pd.DataFrame,
+    users_size: float,
+    items_per_user: float,
     random_seed: int = None
 ) -> Tuple[pd.DataFrame, pd.DataFrame]:
     """
@@ -114,47 +148,63 @@ def split_dataset(df: pd.DataFrame, \
     for each of the chosen users.
     """
     if items_per_user >= 1:
-        raise ValueError( \
+        raise ValueError(
             f"users_size should be a number greater than 0 and smaller than 1: {items_per_user}")
-    
+
     random_generator = random.Random(random_seed)
 
     unique_users = df[USER_ID_FIELD].unique()
-    # ensure that users_size is an absolute size int (not a ratio)
-    if users_size < 1:
-        users_size = int(users_size * len(unique_users))
+    unique_items = df[BUSINESS_ID_FIELD].unique()
+    
+    # ensure that users_size is a ratio (not a absolute size)
+    if users_size > 1:
+        users_size = float(users_size) / len(unique_users)
 
-    users_sample = set(np.random.choice(unique_users, users_size, replace=False))
-    available_users = set()
-    def choose_item_rating(user: str)  -> bool:
-        if user in users_sample:
-            if user in available_users:                
-                return random_generator.random() < items_per_user
-            
-            available_users.add(user)
+    # assuming users are actually the index of the users.
+    users_sample = np.random.choice(
+        a = [0, 1], \
+        size = len(unique_users), \
+        p = [users_size, 1-users_size]
+    )
+
+    split_available_items = np.zeros(len(unique_items))
+
+    # validate that all users and items in the splitted dataset are still exist in the train dataset
+    def choose_item_rating(user: int, item: int) -> bool:
+        splitable_item = True
+        splitable_user = True
+
+        if not split_available_items[item]:
+            split_available_items[item] = SPLIT_AVAILABLE
+            splitable_item = False
+        
+        if not users_sample[user]:
+            return False
+
+        if users_sample[user] != SPLIT_AVAILABLE:
+            users_sample[user] = SPLIT_AVAILABLE
+            splitable_user = False
+
+        if (splitable_item and splitable_user):
+            return random_generator.random() < items_per_user
         
         return False
-            
-        # return user in users_sample \
-        #     and random_generator.random() < items_per_user
 
-    mask = np.full(len(df.index), fill_value=False)
-    for i, user_id in enumerate(df[USER_ID_FIELD]):
-        if choose_item_rating(user_id):
-            mask[i] = True
-    
-    reduced_df = df[~mask]
-    split_df = df[mask]
+    split_mask=np.full(len(df.index), fill_value = False)
+    for i, (user_id, item_id, _) in enumerate(df.itertuples(index=False, name=None)):
+        if choose_item_rating(user_id, item_id):
+            split_mask[i] = True
+
+    reduced_df = df[~split_mask]
+    split_df = df[split_mask]
     return reduced_df, split_df
 
 
 def get_yelp_data_for_cf(train_path: str, test_path: str) -> Tuple[spmatrix, spmatrix]:
     print(f"load train data: {train_path}")
-    train_df = load_yelp_dataset(train_path)
+    train_df=load_yelp_dataset(train_path)
     print(f"load test data: {train_path}")
-    test_df = load_yelp_dataset(test_path)
-    train_mat, test_mat = prepare_data_for_cf(train_df, test_df)
+    test_df=load_yelp_dataset(test_path)
+    train_mat, test_mat=prepare_data_for_cf(train_df, test_df)
     return train_mat, test_mat
-
-
 
