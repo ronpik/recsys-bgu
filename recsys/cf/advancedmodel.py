@@ -10,7 +10,7 @@ from itertools import groupby
 from operator import itemgetter
 
 from recsys.eval.evaltools import rmse
-from recsys.cf import AbstractSVDModel
+from recsys.cf import SVDModelEngine
 from recsys.cf.basemodel import BaseSVDModelParams
 
 INITIALIZE_LATENT_FEATURES_SCALE = 0.005
@@ -34,11 +34,11 @@ class AdvancedSVDModelParams(BaseSVDModelParams):
             .reshape(n_items, latent_dim)
 
     def update(self, user: int, item: int, err: float, regularization: float, learning_rate: float):
-        super().update()
+        super().update(user, item, err, regularization, learning_rate)
         user_items_set = self.user_items_mapping[user]
         norm_factor = np.sqrt(len(user_items_set))
         for i in user_items_set:
-            self.itemspp[i] += learning_rate * ((err * self.items_latent_features) / norm_factor) - (regularization * self.itemspp[i])
+            self.itemspp[i] += learning_rate * ((err * self.items_latent_features[i]) / norm_factor) - (regularization * self.itemspp[i])
 
     def estimate_rating(self, user: int, item: int) -> float:
         user_items_mask = self.user_items_mapping[user]
@@ -52,23 +52,15 @@ class AdvancedSVDModelParams(BaseSVDModelParams):
 
 
 def create_user_item_mapping(train_data: pd.DataFrame) -> list:
-    user_items_mapping = {user_id: np.array(list(group.business_id)) for user_id, group in train_data.groupby('user_id')}
-    return [user_items_mapping[i] for i in range(len(user_items_mapping))]
+    print("create mapping between users to the items they rated")
+    start = time.time()
+    user_item_ratings = sorted(train_data.itertuples(index=False, name=None), key=itemgetter(0))
+    grouped_items_by_user = groupby(user_item_ratings, key=itemgetter(0))
+    rated_items_by_user_index = map(itemgetter(1), grouped_items_by_user)
+    item_ids_by_user_index = map(lambda group: list(map(itemgetter(1), group)), rated_items_by_user_index)
+    user_items_mapping = list(map(np.array, item_ids_by_user_index))
 
-
-class AdvancedModel(AbstractSVDModel):
-    """
-    Implementing SVD for recommendation systems (i.e the given data is sparse due to large amount of missing values)
-    """
-    def __init__(self, learning_rate: float = 0.1, lr_decrease_factor: float = 0.99, regularization: float = 0.02, converge_threshold: float = 1e-4,
-                 max_iterations: int = 30, random_seed: int = None, ):
-        self.__model_parameters = AdvancedSVDModelParams()
-        super().__init__(
-            learning_rate, lr_decrease_factor, regularization, converge_threshold, max_iterations, random_seed)
-    
-    @property
-    def model_parameters_(self) -> AdvancedSVDModelParams:
-        return self.__model_parameters
-
-
+    end = time.time()
+    print(f"creating user items mapping took {end - start:.2f} sec")
+    return user_items_mapping
     
