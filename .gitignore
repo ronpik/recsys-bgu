@@ -5,3 +5,7 @@
 
 # vscode files
 .vscode/
+
+# data files
+*.npz
+*.np*
