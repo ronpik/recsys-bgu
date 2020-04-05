@@ -4,181 +4,55 @@ from random import shuffle, Random, sample
 from typing import Sequence, NamedTuple, List, Tuple
 
 import numpy as np
-import scipy
+import pandas as pd
 import tqdm as tqdm
-from scipy.sparse import spmatrix, find
 from itertools import groupby
 from operator import itemgetter
 
 from recsys.eval.evaltools import rmse
+from recsys.cf import AbstractSVDModel
+from recsys.cf.basemodel import BaseSVDModelParams
 
 INITIALIZE_LATENT_FEATURES_SCALE = 0.005
 
 
-class AdvancedModel(object):
-    """
-    Implementing SVD for recommendation systems (i.e the given data is sparse due to large amount of missing values)
-    """
-    def __init__(self, learning_rate: float = 0.02, lr_decrease_factor: float = 0.99, regularization: float = 0.02, converge_threshold: float = 1e-4,
-                 max_iterations: int = 30, score_sample_size: float = 100_000, random_seed: int = None):
-        self.n_users: int = None
-        self.n_items: int = None
-        self.n_latent: int = None
+class AdvancedSVDModelParams(BaseSVDModelParams):
+    
+    def __init__(self):
+        super().__init__()
+        self.user_items_mapping: list = None
+        self.itemspp: np.ndarray = None
+    
+    def initialize_parameters(self, data: pd.DataFrame, latent_dim: int):
+        super().initialize_parameters(data, latent_dim)
 
-        self.model_parameters_: SVDModelParams = None
-        self.initial_learning_rate = learning_rate
-        self.__adaptive_learning_rate = learning_rate
-        self.lr_decrease_factor = lr_decrease_factor
-        self.regularization = regularization
-        self.converge_threshold = converge_threshold
-        self.__converged = False
-        self.score_sample_size = score_sample_size
-        self.max_iterations = max_iterations
+        self.user_items_mapping = create_user_item_mapping(data)
 
-        self.random = Random(random_seed)
+        scale = INITIALIZE_LATENT_FEATURES_SCALE
+        n_items = len(self.items_bias)
+        self.itemspp = np.random.normal(0, scale, n_items * latent_dim) \
+            .reshape(n_items, latent_dim)
 
-    def fit(self, train_data: spmatrix, validation_data: spmatrix, n_latent: int):
-        self.n_users, self.n_items = train_data.shape
-        self.n_latent = n_latent
-        print("initializing model parameters")
-        self.model_parameters_ = initialize_parameters(train_data, n_latent)
-
-        # user, item, rating = scipy.sparse.find(train_data)
-        train_ratings = list(zip(*scipy.sparse.find(train_data)))
-        validation_ratings = list(zip(*scipy.sparse.find(validation_data)))
-
-
-        prev_score = self.__get_score(validation_ratings)
-        print(f"initial score: {prev_score}")
-        num_iterations = 0
-        while (not self.__converged) and (num_iterations < self.max_iterations):
-            
-            shuffle(train_ratings, self.random.random)
-            
-            print(f"start iteration {num_iterations}")
-            start = time.time()
-            # for (u, i, r) in tqdm.tqdm(train_ratings, total=len(train_ratings)):
-            for (u, i, r) in tqdm.tqdm(train_ratings[:1_000_000], total=1_000_000):
-                r_est = estimate_rating(u, i, self.model_parameters_)
-                err = r - r_est
-                user_items_set = self.model_parameters_.user_items_mapping[u]
-                self.model_parameters_.update(u, i, user_items_set, err, self.regularization, self.__adaptive_learning_rate)
-
-            end = time.time()
-            print(f"iteration {num_iterations} took {int(end - start)} sec")
-
-            # check for convergence
-            new_score = self.__get_score(validation_ratings)
-            print(f"new score: {new_score}")
-            self.__converged = self.__is_converged(prev_score, new_score)
-            prev_score = new_score
-
-            # update values for the next iteration
-            self.__adaptive_learning_rate *= self.lr_decrease_factor
-            num_iterations += 1
-
-
-    def predict(self, data: np.ndarray) -> Sequence[float]:
-        pass
-
-    def __get_score(self, ratings) -> float:
-        ratings_sample = sample(ratings, self.score_sample_size)
-        r_true, r_pred = zip(*[(r, estimate_rating(u, i, self.model_parameters_)) for u, i, r in ratings_sample])
-        return rmse(r_true, r_pred)
-
-    def __is_converged(self, prev_score: float, new_score: float) -> bool:
-        score_diff = prev_score - new_score
-        # if score_diff <= 0:
-        #     return True
-
-        return abs(score_diff) <= self.converge_threshold
-
-
-class SVDModelParams(NamedTuple):
-    # non update params
-    mean_rating: float
-    user_items_mapping:dict
-
-    # update params
-    users_bias: np.ndarray
-    items_bias: np.ndarray
-    users_latent_features: np.ndarray
-    items_latent_features: np.ndarray
-    itemspp: np.ndarray
-
-    def update(self, user: int, item: int, user_items_set: List[int], err: float, regularization: float, learning_rate: float):
-        self.users_bias[user] += learning_rate * (err - (regularization * self.users_bias[user]))
-        self.items_bias[item] += learning_rate * (err - (regularization * self.items_bias[item]))
-
-        user_latent_features = self.users_latent_features[user] # p_i
-        item_latent_features = self.items_latent_features[item] # q_i
-        self.users_latent_features[user] += learning_rate * ((err * item_latent_features) - (regularization * user_latent_features))
-        self.items_latent_features[item] += learning_rate * ((err * user_latent_features) - (regularization * item_latent_features))
+    def update(self, user: int, item: int, err: float, regularization: float, learning_rate: float):
+        super().update()
+        user_items_set = self.user_items_mapping[user]
+        norm_factor = np.sqrt(len(user_items_set))
         for i in user_items_set:
-            self.itemspp[i] += learning_rate * ((err * item_latent_features) / np.sqrt(len(user_items_set))) - (regularization * self.itemspp[i])
+            self.itemspp[i] += learning_rate * ((err * self.items_latent_features) / norm_factor) - (regularization * self.itemspp[i])
+
+    def estimate_rating(self, user: int, item: int) -> float:
+        user_items_mask = self.user_items_mapping[user]
+        user_itemspp = np.sum(self.itemspp[user_items_mask], axis=0)   # sum over the rows
+        user_itemspp /= len(np.sqrt(user_items_mask))
+        item_latent = self.items_latent_features[item]
+        user_addition_latent_product = np.dot(item_latent, user_itemspp)
+        
+        base_estimate = super().estimate_rating(user, item)
+        return base_estimate + user_addition_latent_product
 
 
-def initialize_parameters(users_items_matrix: spmatrix, latent_dim: int) -> SVDModelParams:
-    user, item, rating = find(users_items_matrix)
+def create_user_item_mapping(train_data: pd.DataFrame) -> list:
+    user_items_mapping = {user_id: np.array(list(group.business_id)) for user_id, group in train_data.groupby('user_id')}
+    return [user_items_mapping[i] for i in range(len(user_items_mapping))]
 
-    mean_rating = users_items_matrix.sum() / len(rating)
-
-    user_non_zero_count = np.bincount(user)
-    user_non_zero_sum = np.bincount(user, weights=rating)
-    users_mean_rating = (user_non_zero_sum / user_non_zero_count) - mean_rating
-
-    item_non_zero_count = np.bincount(item)
-    item_non_zero_sum = np.bincount(item, weights=rating)
-    items_mean_rating = (item_non_zero_sum / item_non_zero_count) - mean_rating
-
-    scale = INITIALIZE_LATENT_FEATURES_SCALE
-    n_users, n_items = users_items_matrix.shape
-    
-    latent_user_features = np.random.normal(0, scale, n_users * latent_dim)\
-        .reshape(n_users, latent_dim)
-    
-    latent_item_features = np.random.normal(0, scale, n_items * latent_dim)\
-        .reshape(n_items, latent_dim)
-    
-    latent_itempp = np.random.normal(0, scale, n_items * latent_dim)\
-        .reshape(n_items, latent_dim)
-    
-    user_items_mapping = create_user_item_mapping(users_items_matrix)
-
-    return SVDModelParams(mean_rating,
-                          user_items_mapping,
-                          users_mean_rating,
-                          items_mean_rating,
-                          latent_user_features,
-                          latent_item_features,
-                          latent_itempp
-                          )
-
-def estimate_rating(user: int, item: int, params: SVDModelParams) -> float:
-    mean_rating = params.mean_rating
-    user_bias = params.users_bias[user]
-    item_bias = params.items_bias[item]
-    user_latent = params.users_latent_features[user]
-    item_latent = params.items_latent_features[item]
-    user_items_set = params.user_items_mapping[user]
-
-    user_items_mask = np.asarray(user_items_set)  # list of all items taht 'user' has rated.
-    itemspp = np.sum(params.itemspp[user_items_mask], axis=0)   # sum over the rows
-    itemspp /= len(np.sqrt(user_items_set))
-
-    user_latent += itemspp
-    
-    latent_product = np.dot(item_latent, user_latent)
-    return mean_rating + user_bias + item_bias + latent_product
-
-def save_svd_model(svd_model: AdvancedModel, filename: str):
-    pass
-
-def load_svd_model(filename: str) -> AdvancedModel:
-    pass
-
-def create_user_item_mapping(train_data: spmatrix) -> dict:
-    triplets = list(zip(*find(train_data)))
-    return {user_index: [record[1] for record in item_ratings]
-                        for user_index, item_ratings in groupby(triplets, key=itemgetter(0))} 
     
