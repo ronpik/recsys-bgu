@@ -1,145 +1,94 @@
+import os
+import json
 import time
 from math import sqrt
 from random import shuffle, Random, sample
 from typing import Sequence, NamedTuple, List, Tuple
+from itertools import islice
 
+import pandas as pd
 import numpy as np
-import scipy
 import tqdm as tqdm
-from scipy.sparse import spmatrix, find
 
 from recsys.eval.evaltools import rmse
+from recsys.utils.data.yelp_dataset import split_dataset
+from recsys.cf import SVDModelEngine, AbstractSVDModelParams
+
 
 INITIALIZE_LATENT_FEATURES_SCALE = 0.005
+ITERATION_BATCH_SIZE = 300_000
 
 
-class BaseModel(object):
-    """
-    Implementing SVD for recommendation systems (i.e the given data is sparse due to large amount of missing values)
-    """
-    def __init__(self, learning_rate: float = 0.005, lr_decrease_factor: float = 0.99, regularization: float = 0.02, converge_threshold: float = 1e-4,
-                 max_iterations: int = 30, score_sample_size: float = 100_000, random_seed: int = None):
-        self.n_users: int = None
-        self.n_items: int = None
-        self.n_latent: int = None
+class BaseSVDModelParams(AbstractSVDModelParams):
 
-        self.model_parameters_: SVDModelParams = None
-        self.initial_learning_rate = learning_rate
-        self.__adaptive_learning_rate = learning_rate
-        self.lr_decrease_factor = lr_decrease_factor
-        self.regularization = regularization
-        self.converge_threshold = converge_threshold
-        self.__converged = False
-        self.score_sample_size = score_sample_size
-        self.max_iterations = max_iterations
+    def __init__(self):
+        # non update self
+        self.mean_rating: float = None
 
-        self.random = Random(random_seed)
+        # update self
+        self.users_bias: np.ndarray = None
+        self.items_bias: np.ndarray = None
+        self.users_latent_features: np.ndarray = None
+        self.items_latent_features: np.ndarray = None
+    
+    def initialize_parameters(self, data: pd.DataFrame, latent_dim: int):
+        ratings = data.iloc[:, 2]
+        self.mean_rating = ratings.sum() / len(ratings)
 
-    def fit(self, data: spmatrix, n_latent: int):
-        self.n_users, self.n_items = data.shape
-        self.n_latent = n_latent
-        print("initializing model parameters")
-        self.model_parameters_ = initialize_parameters(data, n_latent)
+        users = data.iloc[:, 0]
+        user_non_zero_count = np.bincount(users)
+        user_non_zero_sum = np.bincount(users, weights=ratings)
+        self.users_bias = (user_non_zero_sum / user_non_zero_count) - self.mean_rating
 
-        user, item, rating = scipy.sparse.find(data)
-        ratings = list(zip(user, item, rating))
-        shuffle(ratings, self.random.random)
+        items = data.iloc[:, 1]
+        item_non_zero_count = np.bincount(items)
+        item_non_zero_sum = np.bincount(items, weights=ratings)
+        self.items_bias = (item_non_zero_sum / item_non_zero_count) - self.mean_rating
 
-        prev_score = self.__get_score(ratings)
-        print(f"initial score: {prev_score}")
-        num_iterations = 0
-        while (not self.__converged) and (num_iterations < self.max_iterations):
-            print(f"start iteration {num_iterations}")
-            start = time.time()
-            for (u, i, r) in tqdm.tqdm(ratings, total=len(ratings)):
-                r_est = estimate_rating(u, i, self.model_parameters_)
-                err = r - r_est
-                self.model_parameters_.update(u, i, err, self.regularization, self.__adaptive_learning_rate)
+        scale = INITIALIZE_LATENT_FEATURES_SCALE
+        n_users = users.max() + 1
+        n_items = items.max() + 1
+        
+        self.users_latent_features = np.random.normal(0, scale, n_users * latent_dim)\
+            .reshape(n_users, latent_dim)
+        
+        self.items_latent_features = np.random.normal(0, scale, n_items * latent_dim)\
+            .reshape(n_items, latent_dim)
 
-            end = time.time()
-            print(f"iteration {num_iterations} took {int(end - start)} sec")
-
-            # check for convergence
-            new_score = self.__get_score(ratings)
-            print(f"new score: {new_score}")
-            self.__converged = self.__is_converged(prev_score, new_score)
-            prev_score = new_score
-
-            # update values for the next iteration
-            self.__adaptive_learning_rate *= self.lr_decrease_factor
-            num_iterations += 1
-            shuffle(ratings, self.random.random)
-
-    def predict(self, data: np.ndarray) -> Sequence[float]:
-        pass
-
-    def __get_score(self, ratings) -> float:
-        ratings_sample = sample(ratings, self.score_sample_size)
-        r_true, r_pred = zip(*[(r, estimate_rating(u, i, self.model_parameters_)) for u, i, r in ratings_sample])
-        return rmse(r_true, r_pred)
-
-    def __is_converged(self, prev_score: float, new_score: float) -> bool:
-        score_diff = prev_score - new_score
-        if score_diff <= 0:
-            return True
-
-        return abs(score_diff) <= self.converge_threshold
-
-
-class SVDModelParams(NamedTuple):
-    mean_rating: float
-    users_bias: np.ndarray
-    items_bias: np.ndarray
-    users_latent_features: np.ndarray
-    items_latent_features: np.ndarray
+    def estimate_rating(self, user: int, item: int) -> float:
+        mean_rating = self.mean_rating
+        user_bias = self.users_bias[user]
+        item_bias = self.items_bias[item]
+        user_latent = self.users_latent_features[user]
+        item_latent = self.items_latent_features[item]
+        latent_product = np.dot(item_latent, user_latent)
+        return mean_rating + user_bias + item_bias + latent_product
 
     def update(self, user: int, item: int, err: float, regularization: float, learning_rate: float):
         self.users_bias[user] += learning_rate * (err - (regularization * self.users_bias[user]))
         self.items_bias[item] += learning_rate * (err - (regularization * self.items_bias[item]))
 
-        user_latent_features = self.users_latent_features[user]
-        item_latent_features = self.items_latent_features[item]
+        user_latent_features = self.users_latent_features[user] # p_i
+        item_latent_features = self.items_latent_features[item] # q_i
         self.users_latent_features[user] += learning_rate * ((err * item_latent_features) - (regularization * user_latent_features))
         self.items_latent_features[item] += learning_rate * ((err * user_latent_features) - (regularization * item_latent_features))
 
 
-def initialize_parameters(users_items_matrix: spmatrix, latent_dim: int) -> SVDModelParams:
-    user, item, rating = find(users_items_matrix)
+def save_base_svd_model_parameters(svd_params: BaseSVDModelParams, filepath: str):    
+    np.savez_compressed(filepath,
+        mean_rating=svd_params.mean_rating,
+        users_bias=svd_params.users_bias,
+        items_bias=svd_params.items_bias,
+        users_latent=svd_params.users_latent_features,
+        items_latent=svd_params.items_latent_features
+    )
 
-    mean_rating = users_items_matrix.sum() / len(rating)
-
-    user_non_zero_count = np.bincount(user)
-    user_non_zero_sum = np.bincount(user, weights=rating)
-    users_mean_rating = (user_non_zero_sum / user_non_zero_count) - mean_rating
-
-    item_non_zero_count = np.bincount(item)
-    item_non_zero_sum = np.bincount(item, weights=rating)
-    items_mean_rating = (item_non_zero_sum / item_non_zero_count) - mean_rating
-
-    scale = INITIALIZE_LATENT_FEATURES_SCALE
-    n_users, n_items = users_items_matrix.shape
-    latent_user_features = np.random.normal(0, scale, n_users * latent_dim)\
-        .reshape(n_users, latent_dim)
-    latent_item_features = np.random.normal(0, scale, n_items * latent_dim)\
-        .reshape(n_items, latent_dim)
-
-    return SVDModelParams(mean_rating,
-                          users_mean_rating,
-                          items_mean_rating,
-                          latent_user_features,
-                          latent_item_features
-                          )
-
-
-def estimate_rating(user: int, item: int, params: SVDModelParams) -> float:
-    mean_rating = params.mean_rating
-    user_bias = params.users_bias[user]
-    item_bias = params.items_bias[item]
-    user_latent = params.users_latent_features[user]
-    item_latent = params.items_latent_features[item]
-
-    latent_product = np.dot(item_latent, user_latent)
-    return mean_rating + user_bias + item_bias + latent_product
-
-
-
+def load_svd_model(filepath: str) -> BaseSVDModelParams:
+    svd_params = BaseSVDModelParams()
+    loaded_params = np.load(filepath)
+    svd_params.mean_rating = loaded_params["mean_rating"]
+    svd_params.users_bias = loaded_params["users_bias"]
+    svd_params.items_bias = loaded_params["items_bias"]
+    svd_params.users_latent_features = loaded_params["users_latent"]
+    svd_params.items_latent_features = loaded_params["items_latent"]
+    return svd_params

@@ -4,11 +4,12 @@ module_dir = os.path.dirname(os.path.dirname(__file__))
 print(module_dir)
 sys.path.append(module_dir)
 
-from recsys.utils.data.yelp_dataset import load_yelp_dataset, split_dataset, reindex_data
-from recsys.cf import RecommenderSystem
-from recsys.cf.basemodel import BaseSVDModelParams, save_base_svd_model_parameters
-
 import time
+
+from recsys.utils.data.yelp_dataset import load_yelp_dataset, split_dataset, reindex_data
+from recsys.cf import RecommenderSystem, SVDModelEngine
+from recsys.cf.basemodel import BaseSVDModelParams, save_base_svd_model_parameters, load_svd_model
+from recsys.eval.evaltools import rmse
 
 
 if __name__ == "__main__":
@@ -16,9 +17,8 @@ if __name__ == "__main__":
     train_path = r"C:\\Users\\ronp\\Documents\\מסמכים לתואר שני\\recsys\\ex1\\data\\trainData.csv"
     # sys.argv[2]
     test_path = r"C:\\Users\\ronp\\Documents\\מסמכים לתואר שני\\recsys\\ex1\\data\\testData.csv"
-    num_latent_features = 40  # int(sys.argv[3])
-    advanced_model = False # bool(sys.argv[4])
-    save_model_file = r"C:\\Users\\ronp\\PycharmProjects\\recsys\\models\\base-svd-model"
+    advanced_model = False # bool(sys.argv[3])
+    model_path = r"C:\\Users\\ronp\\PycharmProjects\\recsys\\recsys\\cf\\base-svd-model.npz" # sys.argv[4]
     start = time.time()
     print(f"load train data: {train_path}")
     train_df = load_yelp_dataset(train_path)
@@ -36,16 +36,21 @@ if __name__ == "__main__":
     end = time.time()
     print(f"re-indexing took {end - start:.2f} sec")
 
-    CFModel = RecommenderSystem(random_seed=71070)
+    cfModel = RecommenderSystem(random_seed=71070)
+    
+    print("load model parameters")
+    start = time.time()
     if advanced_model:
-        print("train advanced model")
-        CFModel.TrainAdvancedModel(train_df, num_latent_features)
+        svd_params = None #load_svd_model(model_path)
+        cfModel.advanced_model = SVDModelEngine(svd_params)
     else:
-        print("train base model")
-        CFModel.TrainBaseModel(train_df, num_latent_features)
-        
-        if save_model_file is not None:
-            print(f"save base model parameters to {os.path.abspath(save_model_file)}")
-            save_base_svd_model_parameters(CFModel.base_model.model_parameters_, save_model_file)
+        svd_params = load_svd_model(model_path)
+        cfModel.base_model = SVDModelEngine(svd_params)
+    end = time.time()
+    print(f"loading model parameters took {end - start:.2f}")
 
+    y_true = test_df.stars
+    y_pred = cfModel.PredictRating(test_df, "svd")
+    score = rmse(y_true, y_pred)
+    print(f"rmse: {score}")
 

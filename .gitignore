@@ -1,1 +1,11 @@
+**/__pycache__
+
+# pycharm files
 .idea
+
+# vscode files
+.vscode/
+
+# data files
+*.npz
+*.np*
