@@ -1,3 +1,5 @@
+import os
+import json
 import time
 from math import sqrt
 from random import shuffle, Random, sample
@@ -71,8 +73,22 @@ class BaseSVDModelParams(AbstractSVDModelParams):
         self.users_latent_features[user] += learning_rate * ((err * item_latent_features) - (regularization * user_latent_features))
         self.items_latent_features[item] += learning_rate * ((err * user_latent_features) - (regularization * item_latent_features))
 
-# def save_svd_model(svd_model: BaseModel, filename: str):
-#     pass
 
-# def load_svd_model(filename: str) -> BaseModel:
-#     pass
+def save_base_svd_model_parameters(svd_params: BaseSVDModelParams, filepath: str):    
+    np.savez_compressed(filepath,
+        mean_rating=svd_params.mean_rating,
+        users_bias=svd_params.users_bias,
+        items_bias=svd_params.items_bias,
+        users_latent=svd_params.users_latent_features,
+        items_latent=svd_params.items_latent_features
+    )
+
+def load_svd_model(filepath: str) -> BaseSVDModelParams:
+    svd_params = BaseSVDModelParams()
+    loaded_params = np.load(filepath)
+    svd_params.mean_rating = loaded_params["mean_rating"]
+    svd_params.users_bias = loaded_params["users_bias"]
+    svd_params.items_bias = loaded_params["items_bias"]
+    svd_params.users_latent_features = loaded_params["users_latent"]
+    svd_params.items_latent_features = loaded_params["items_latent"]
+    return svd_params

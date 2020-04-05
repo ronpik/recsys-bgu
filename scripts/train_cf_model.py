@@ -6,6 +6,8 @@ sys.path.append(module_dir)
 
 from recsys.utils.data.yelp_dataset import load_yelp_dataset, split_dataset, reindex_data
 from recsys.cf import RecommenderSystem
+from recsys.cf.basemodel import BaseSVDModelParams, save_base_svd_model_parameters
+
 import time
 
 
@@ -15,7 +17,8 @@ if __name__ == "__main__":
     # sys.argv[2]
     test_path = r"C:\\Users\\ronp\\Documents\\מסמכים לתואר שני\\recsys\\ex1\\data\\testData.csv"
     num_latent_features = 40  # int(sys.argv[3])
-    advanced_model = True # bool(sys.argv[4])
+    advanced_model = False # bool(sys.argv[4])
+    save_model_file = "base-svd-model"
     start = time.time()
     print(f"load train data: {train_path}")
     train_df = load_yelp_dataset(train_path)
@@ -40,3 +43,8 @@ if __name__ == "__main__":
     else:
         print("train base model")
         CFModel.TrainBaseModel(train_df, num_latent_features)
+        
+        if save_model_file is not None:
+            save_base_svd_model_parameters(CFModel.base_model.model_parameters_, save_model_file)
+            
+

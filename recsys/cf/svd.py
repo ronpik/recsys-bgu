@@ -27,8 +27,8 @@ class SVDModelEngine(abc.ABC):
     VALIDATION_USERS_SIZE = 0.5
     VALIDATION_ITEMS_PER_USER_SIZE = 0.3
 
-    def __init__(self, svd_parameters: AbstractSVDModelParams, learning_rate: float = 0.005, lr_decrease_factor: float = 0.99, regularization: float = 0.02, converge_threshold: float = 1e-4,
-                 max_iterations: int = 30, random_seed: int = None):
+    def __init__(self, svd_parameters: AbstractSVDModelParams, learning_rate: float = 0.05, lr_decrease_factor: float = 0.99, regularization: float = 0.02, converge_threshold: float = 1e-4,
+                 max_iterations: int = 0, random_seed: int = None):
         self.n_users: int = None
         self.n_items: int = None
         self.n_latent: int = None
