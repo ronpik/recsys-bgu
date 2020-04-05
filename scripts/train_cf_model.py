@@ -15,6 +15,7 @@ if __name__ == "__main__":
     # sys.argv[2]
     test_path = r"C:\\Users\\ronp\\Documents\\מסמכים לתואר שני\\recsys\\ex1\\data\\testData.csv"
     num_latent_features = 40  # int(sys.argv[3])
+    advanced_model = True # bool(sys.argv[4])
     start = time.time()
     print(f"load train data: {train_path}")
     train_df = load_yelp_dataset(train_path)
@@ -32,5 +33,10 @@ if __name__ == "__main__":
     end = time.time()
     print(f"re-indexing took {end - start:.2f} sec")
 
-    CFModel = RecommenderSystem(train_df, test_df)
-    CFModel.TrainBaseModel(num_latent_features)
+    CFModel = RecommenderSystem(random_seed=71070)
+    if advanced_model:
+        print("train advanced model")
+        CFModel.TrainAdvancedModel(train_df, num_latent_features)
+    else:
+        print("train base model")
+        CFModel.TrainBaseModel(train_df, num_latent_features)

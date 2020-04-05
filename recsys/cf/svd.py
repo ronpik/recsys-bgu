@@ -18,7 +18,7 @@ INITIALIZE_LATENT_FEATURES_SCALE = 0.005
 ITERATION_BATCH_SIZE = 300_000
 
 
-class AbstractSVDModel(abc.ABC):
+class SVDModelEngine(abc.ABC):
     """
     Implementing SVD for recommendation systems (i.e the given data is sparse due to large amount of missing values)
     """
@@ -27,16 +27,13 @@ class AbstractSVDModel(abc.ABC):
     VALIDATION_USERS_SIZE = 0.5
     VALIDATION_ITEMS_PER_USER_SIZE = 0.3
 
-    @property
-    @abc.abstractmethod
-    def model_parameters_(self) -> AbstractSVDModelParams:
-        raise NotImplementedError()
-
-    def __init__(self, learning_rate: float = 0.1, lr_decrease_factor: float = 0.99, regularization: float = 0.02, converge_threshold: float = 1e-4,
+    def __init__(self, svd_parameters: AbstractSVDModelParams, learning_rate: float = 0.005, lr_decrease_factor: float = 0.99, regularization: float = 0.02, converge_threshold: float = 1e-4,
                  max_iterations: int = 30, random_seed: int = None):
         self.n_users: int = None
         self.n_items: int = None
         self.n_latent: int = None
+
+        self.__model_parameters = svd_parameters
 
         self.initial_learning_rate = learning_rate
         self.__adaptive_learning_rate = learning_rate
@@ -47,6 +44,10 @@ class AbstractSVDModel(abc.ABC):
         self.max_iterations = max_iterations
 
         self.random = Random(random_seed)
+    
+    @property
+    def model_parameters_(self) -> AbstractSVDModelParams:
+        return self.__model_parameters
 
     def fit(self, train_data: pd.DataFrame, n_latent: int):
         """
@@ -55,8 +56,12 @@ class AbstractSVDModel(abc.ABC):
         self.__initialize_model_parameters(train_data, n_latent)
 
         print("split train data for validation")
+        start = time.time()
         train_data, validation_data = split_dataset(
             train_data, self.VALIDATION_USERS_SIZE, self.VALIDATION_ITEMS_PER_USER_SIZE)
+        end = time.time()
+        print(f"split to train - validation datasets took {end - start: .2f} sec")
+
         validation_ratings = list(
             validation_data.itertuples(index=False, name=None))
         prev_score = self.__get_score(validation_ratings)

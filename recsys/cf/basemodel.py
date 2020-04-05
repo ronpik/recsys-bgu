@@ -10,7 +10,7 @@ import tqdm as tqdm
 
 from recsys.eval.evaltools import rmse
 from recsys.utils.data.yelp_dataset import split_dataset
-from recsys.cf import AbstractSVDModel, AbstractSVDModelParams
+from recsys.cf import SVDModelEngine, AbstractSVDModelParams
 
 
 INITIALIZE_LATENT_FEATURES_SCALE = 0.005
@@ -76,18 +76,3 @@ class BaseSVDModelParams(AbstractSVDModelParams):
 
 # def load_svd_model(filename: str) -> BaseModel:
 #     pass
-
-
-class BaseModel(AbstractSVDModel):
-    """
-    Implementing SVD for recommendation systems (i.e the given data is sparse due to large amount of missing values)
-    """
-    def __init__(self, learning_rate: float = 0.1, lr_decrease_factor: float = 0.99, regularization: float = 0.02, converge_threshold: float = 1e-4,
-                 max_iterations: int = 30, random_seed: int = None, ):
-        self.__model_parameters = BaseSVDModelParams()
-        super().__init__(
-            learning_rate, lr_decrease_factor, regularization, converge_threshold, max_iterations, random_seed)
-    
-    @property
-    def model_parameters_(self) -> BaseSVDModelParams:
-        return self.__model_parameters

@@ -1,11 +1,13 @@
+import time
+
 import pandas as pd
 
-from recsys.cf.basemodel import BaseModel
-from recsys.cf.advancedmodel import AdvancedModel
+from recsys.cf import SVDModelEngine
+from recsys.cf.basemodel import BaseSVDModelParams
+from recsys.cf.advancedmodel import AdvancedSVDModelParams
 from recsys.cf.combined import CombinedModel
 from recsys.cf.sentiment import SentimentModel
 from recsys.utils.data.yelp_dataset import prepare_data_for_cf, split_dataset
-import time
 
 
 class RecommenderSystem(object):
@@ -14,28 +16,29 @@ class RecommenderSystem(object):
     VALIDATION_USERS_SIZE = 0.5
     VALIDATION_ITEMS_PER_USER_SIZE = 0.3
 
-    def __init__(self, train_data: pd.DataFrame, test_data: pd.DataFrame): 
-        self.train_data = train_data
-        self.test_data = test_data
-
+    def __init__(self, random_seed: int = None):
         self.base_model = None
         self.sentiment_model = None
         self.combined_model = None
+        self. random_seed = random_seed
 
-    def TrainBaseModel(self, n_latent: int):
+    def TrainBaseModel(self, train_data: pd.DataFrame, n_latent: int):
         print(f"number of latent features: {n_latent}")
-        self.base_model = BaseModel(random_seed=1919)
-        self.base_model.fit(self.train_data, n_latent)
+        base_svd_parameters = BaseSVDModelParams()
+        self.base_model = SVDModelEngine(base_svd_parameters, random_seed=self.random_seed)
+        self.base_model.fit(train_data, n_latent)
 
-    def TrainAdvancedModel(self, n_latent: int):
+    def TrainAdvancedModel(self, train_data: pd.DataFrame, n_latent: int):
         print(f"number of latent features: {n_latent}")
-        # train_mat, validation_mat = prepare_data_for_cf(self.train_data, self.validation_data)
-        self.advanced_model = AdvancedModel()
-        self.advanced_model.fit(self.train_data, self.test_data, n_latent)
+        advanced_svd_parameters = AdvancedSVDModelParams()
+        self.advanced_model = SVDModelEngine(advanced_svd_parameters, random_seed=self.random_seed)
+        self.advanced_model.fit(train_data, n_latent)
 
-    def TrainSentimentModel(self):
+    def TrainSentimentModel(self, train_data: pd.DataFrame):
         self.sentiment_model = SentimentModel()
-        self.sentiment_model.fit(self.train_data.drop('stars'), self.train_data.stars)
+        X = train_data.drop('stars')
+        y = train_data.stars
+        self.sentiment_model.fit(X, y)
 
     def TrainCombinedModel(self):
         """
