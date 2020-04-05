@@ -4,7 +4,7 @@ import time
 from math import sqrt
 from random import shuffle, Random, sample
 from typing import Sequence, NamedTuple, List, Tuple
-from itertools import islice
+from itertools import islice, starmap
 
 import pandas as pd
 import numpy as np
@@ -102,8 +102,10 @@ class SVDModelEngine(abc.ABC):
         print("initializing model parameters")
         self.model_parameters_.initialize_parameters(train_data, n_latent)
 
-    def predict(self, data: np.ndarray) -> Sequence[float]:
-        pass
+    def predict(self, users: Sequence[int], items: Sequence[int]) -> Sequence[float]:
+        user_item_pairs = zip(users, items)
+        pred_sinle = self.model_parameters_.estimate_rating
+        return list(starmap(pred_sinle, user_item_pairs))
 
     def __get_score(self, ratings) -> float:
         r_true, r_pred = zip(*[(r, self.model_parameters_.estimate_rating(u, i)) \

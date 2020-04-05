@@ -48,10 +48,17 @@ class RecommenderSystem(object):
         # TODO(train the model)
         self.base_model = CombinedModel()
 
-    def PredictRating(self, data, model_name="base"):
-        if model_name == "base":
-            return self.base_model.predict(data)
-        if model_name == "sentiment":
+    def PredictRating(self, data: pd.DataFrame, model_name="base"):
+        if model_name.startswith("svd"):
+            users = data.user_id
+            items = data.business_id
+
+            if model_name == "svd++":
+                return self.advanced_model.predict(users, items)
+            elif model_name == "svd":
+                return self.base_model.predict(users, items)
+
+        elif model_name == "sentiment":
             return self.sentiment_model.predict(data)
-        if model_name == "combined":
+        elif model_name == "combined":
             return self.combined_model.predict(data)
