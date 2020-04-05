@@ -73,8 +73,7 @@ class AbstractSVDModel(abc.ABC):
             print(f"start iteration {num_iterations}")
             start = time.time()
             for u, i, r in tqdm.tqdm(train_ratings, total=ITERATION_BATCH_SIZE):
-                r_est = self.model_parameters_.estimate_rating(
-                    u, i, self.model_parameters_)
+                r_est = self.model_parameters_.estimate_rating(u, i)
                 err = r - r_est
                 self.model_parameters_.update(
                     u, i, err, self.regularization, self.__adaptive_learning_rate)
@@ -102,8 +101,8 @@ class AbstractSVDModel(abc.ABC):
         pass
 
     def __get_score(self, ratings) -> float:
-        r_true, r_pred = zip(*[(r, self.model_parameters_.estimate_rating(u,
-                                                                          i, self.model_parameters_)) for u, i, r in ratings])
+        r_true, r_pred = zip(*[(r, self.model_parameters_.estimate_rating(u, i)) \
+                                for u, i, r in ratings])
         return rmse(r_true, r_pred)
 
     def __is_converged(self, prev_score: float, new_score: float) -> bool:
