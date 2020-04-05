@@ -27,7 +27,7 @@ class SVDModelEngine(abc.ABC):
     VALIDATION_USERS_SIZE = 0.5
     VALIDATION_ITEMS_PER_USER_SIZE = 0.3
 
-    def __init__(self, svd_parameters: AbstractSVDModelParams, learning_rate: float = 0.05, lr_decrease_factor: float = 0.99, regularization: float = 0.02, converge_threshold: float = 1e-4,
+    def __init__(self, svd_parameters: AbstractSVDModelParams, learning_rate: float = 0.01, lr_decrease_factor: float = 0.99, regularization: float = 0.1, converge_threshold: float = 1e-4,
                  max_iterations: int = 0, random_seed: int = None):
         self.n_users: int = None
         self.n_items: int = None
@@ -114,7 +114,7 @@ class SVDModelEngine(abc.ABC):
 
     def __is_converged(self, prev_score: float, new_score: float) -> bool:
         score_diff = prev_score - new_score
-        # if score_diff <= 0:
-        #     return True
+        if score_diff <= 0:
+            return True
 
         return abs(score_diff) <= self.converge_threshold
