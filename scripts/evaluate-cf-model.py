@@ -1,5 +1,9 @@
+import random
 import sys
 import os
+
+import numpy as np
+
 module_dir = os.path.dirname(os.path.dirname(__file__))
 print(module_dir)
 sys.path.append(module_dir)
@@ -8,17 +12,17 @@ import time
 
 from recsys.utils.data.yelp_dataset import load_yelp_dataset, split_dataset, reindex_data
 from recsys.cf import RecommenderSystem, SVDModelEngine
-from recsys.cf.basemodel import BaseSVDModelParams, save_base_svd_model_parameters, load_svd_model
+from recsys.cf.basemodel import load_svd_model
 from recsys.eval.evaltools import rmse
 
 
 if __name__ == "__main__":
     # sys.argv[1]
-    train_path = r"C:\\Users\\ronp\\Documents\\מסמכים לתואר שני\\recsys\\ex1\\data\\trainData.csv"
+    train_path = "/home/ron/data/studies/bgu/recsys/ex1/data/trainData.csv"
     # sys.argv[2]
-    test_path = r"C:\\Users\\ronp\\Documents\\מסמכים לתואר שני\\recsys\\ex1\\data\\testData.csv"
+    test_path = "/home/ron/data/studies/bgu/recsys/ex1/data/testData.csv"
     advanced_model = False # bool(sys.argv[3])
-    model_path = r"C:\\Users\\ronp\\PycharmProjects\\recsys\\recsys\\cf\\base-svd-model.npz" # sys.argv[4]
+    model_path = "/home/ron/data/studies/bgu/recsys/ex1/data/base-svd-model.npz" # sys.argv[4]
     start = time.time()
     print(f"load train data: {train_path}")
     train_df = load_yelp_dataset(train_path)
@@ -49,8 +53,31 @@ if __name__ == "__main__":
     end = time.time()
     print(f"loading model parameters took {end - start:.2f}")
 
+    # evaluate on train data
+    y_true = train_df.stars
+    y_pred = cfModel.PredictRating(train_df, "svd")
+    train_score = rmse(y_true, y_pred)
+    print(f"train - rmse: {5 * train_score}")
+
+    print("Evaluate Testset")
     y_true = test_df.stars
+
+    # evaluate random
+    y_random = [random.choice([0.2, 0.4, 0.6, 0.8, 1.0]) for _ in range(len(y_true))]
+    random_score = rmse(y_true, y_random)
+    print(f"random - rmse: {5 * random_score}")
+
+    # evaluate constant
+    mean = np.mean(y_true)
+    y_mean = [mean for _ in range(len(y_true))]
+    mean_score = rmse(y_true, y_mean)
+    print(f"mean - rmse: {5 * mean_score}")
+
+    #evaluate baseline
+
+
+    # evaluate on test data
     y_pred = cfModel.PredictRating(test_df, "svd")
-    score = rmse(y_true, y_pred)
-    print(f"rmse: {score}")
+    test_score = rmse(y_true, y_pred)
+    print(f"test - rmse: {5 * test_score}")
 
