@@ -117,7 +117,7 @@ class SVDModelEngine(abc.ABC):
     def predict(self, users: Sequence[int], items: Sequence[int]) -> Sequence[float]:
         user_item_pairs = zip(users, items)
         pred_sinle = self.model_parameters_.estimate_rating
-        return list(starmap(pred_sinle, user_item_pairs))
+        return np.asarray(list(starmap(pred_sinle, user_item_pairs)))
 
     def __get_score(self, ratings) -> float:
         r_true, r_pred = zip(*[(r, self.model_parameters_.estimate_rating(u, i)) \

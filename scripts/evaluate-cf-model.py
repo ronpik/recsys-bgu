@@ -54,30 +54,30 @@ if __name__ == "__main__":
     print(f"loading model parameters took {end - start:.2f}")
 
     # evaluate on train data
-    y_true = train_df.stars
+    y_true = train_df.stars * 5
     y_pred = cfModel.PredictRating(train_df, "svd")
     train_score = rmse(y_true, y_pred)
-    print(f"train - rmse: {5 * train_score}")
+    print(f"train - rmse: {train_score}")
 
     print("Evaluate Testset")
-    y_true = test_df.stars
+    y_true = test_df.stars * 5
 
     # evaluate random
-    y_random = [random.choice([0.2, 0.4, 0.6, 0.8, 1.0]) for _ in range(len(y_true))]
+    y_random = np.asarray([random.choice([0.2, 0.4, 0.6, 0.8, 1.0]) for _ in range(len(y_true))]) * 5
     random_score = rmse(y_true, y_random)
-    print(f"random - rmse: {5 * random_score}")
+    print(f"random - rmse: {random_score}")
 
     # evaluate constant
     mean = np.mean(y_true)
     y_mean = [mean for _ in range(len(y_true))]
     mean_score = rmse(y_true, y_mean)
-    print(f"mean - rmse: {5 * mean_score}")
+    print(f"mean - rmse: {mean_score}")
 
     #evaluate baseline
 
 
     # evaluate on test data
-    y_pred = cfModel.PredictRating(test_df, "svd")
+    y_pred = cfModel.PredictRating(test_df, "svd") * 5
     test_score = rmse(y_true, y_pred)
-    print(f"test - rmse: {5 * test_score}")
+    print(f"test - rmse: {test_score}")
 

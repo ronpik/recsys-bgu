@@ -1,4 +1,5 @@
 import time
+from typing import Sequence
 
 import pandas as pd
 
@@ -48,7 +49,7 @@ class RecommenderSystem(object):
         # TODO(train the model)
         self.base_model = CombinedModel()
 
-    def PredictRating(self, data: pd.DataFrame, model_name="base"):
+    def PredictRating(self, data: pd.DataFrame, model_name="base") -> Sequence[int]:
         if model_name.startswith("svd"):
             users = data.user_id
             items = data.business_id

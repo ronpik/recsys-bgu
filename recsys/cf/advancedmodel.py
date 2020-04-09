@@ -1,16 +1,10 @@
 import time
-from math import sqrt
-from random import shuffle, Random, sample
-from typing import Sequence, NamedTuple, List, Tuple
 
 import numpy as np
 import pandas as pd
-import tqdm as tqdm
 from itertools import groupby
 from operator import itemgetter
 
-from recsys.eval.evaltools import rmse
-from recsys.cf import SVDModelEngine
 from recsys.cf.basemodel import BaseSVDModelParams
 
 INITIALIZE_LATENT_FEATURES_SCALE = 0.005
@@ -35,10 +29,10 @@ class AdvancedSVDModelParams(BaseSVDModelParams):
 
     def update(self, user: int, item: int, err: float, regularization: float, learning_rate: float):
         super().update(user, item, err, regularization, learning_rate)
-        user_items_set = self.user_items_mapping[user]
-        norm_factor = np.sqrt(len(user_items_set))
-        for i in user_items_set:
-            self.itemspp[i] += learning_rate * ((err * self.items_latent_features[i]) / norm_factor) - (regularization * self.itemspp[i])
+        items_mask = self.user_items_mapping[user]
+        norm_factor = np.sqrt(len(items_mask))
+        user_items_update = ((err * self.items_latent_features[items_mask]) / norm_factor) - (regularization * self.itemspp[items_mask])
+        self.itemspp[items_mask] += learning_rate * user_items_update
 
     def estimate_rating(self, user: int, item: int) -> float:
         user_items_mask = self.user_items_mapping[user]
@@ -63,4 +57,24 @@ def create_user_item_mapping(train_data: pd.DataFrame) -> list:
     end = time.time()
     print(f"creating user items mapping took {end - start:.2f} sec")
     return user_items_mapping
-    
+
+
+def save_advanced_svd_model(svd_params: AdvancedSVDModelParams, filepath: str):
+    np.savez_compressed(filepath,
+                        mean_rating=svd_params.mean_rating,
+                        users_bias=svd_params.users_bias,
+                        items_bias=svd_params.items_bias,
+                        users_latent=svd_params.users_latent_features,
+                        items_latent=svd_params.items_latent_features
+                        )
+
+
+def load_advanced_svd_model(filepath: str) -> AdvancedSVDModelParams:
+    svd_params = AdvancedSVDModelParams()
+    loaded_params = np.load(filepath)
+    svd_params.mean_rating = loaded_params["mean_rating"]
+    svd_params.users_bias = loaded_params["users_bias"]
+    svd_params.items_bias = loaded_params["items_bias"]
+    svd_params.users_latent_features = loaded_params["users_latent"]
+    svd_params.items_latent_features = loaded_params["items_latent"]
+    return svd_params
