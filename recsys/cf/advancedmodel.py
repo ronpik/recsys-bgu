@@ -1,4 +1,5 @@
 import time
+from typing import List
 
 import numpy as np
 import pandas as pd
@@ -59,13 +60,42 @@ def create_user_item_mapping(train_data: pd.DataFrame) -> list:
     return user_items_mapping
 
 
+def encode_user_items_mapping(user_item_mapping: List[np.ndarray]) -> np.array:
+    total_size = sum(len(items) for items in user_item_mapping) + len(user_item_mapping)
+    encoded = np.zeros(total_size, dtype=int)
+
+    start = 0
+    for items in user_item_mapping:
+        num_items = len(items)
+        encoded[start] = num_items
+        encoded[start + 1: start + 1 + num_items] = items
+        start += 1 + num_items
+
+    assert(start == total_size)
+    return encoded
+
+
+def decode_user_items_mapping(encoded_mapping: np.array) -> List[np.array]:
+    user_items_mapping = []
+    start = 0
+    while start < len(encoded_mapping):
+        num_items = encoded_mapping[start]
+        items = encoded_mapping[start + 1: start + 1 + num_items]
+        user_items_mapping.append(items)
+
+        start += 1 + num_items
+
+    return user_items_mapping
+
+
 def save_advanced_svd_model(svd_params: AdvancedSVDModelParams, filepath: str):
     np.savez_compressed(filepath,
                         mean_rating=svd_params.mean_rating,
                         users_bias=svd_params.users_bias,
                         items_bias=svd_params.items_bias,
                         users_latent=svd_params.users_latent_features,
-                        items_latent=svd_params.items_latent_features
+                        items_latent=svd_params.items_latent_features,
+                        user_items_mapping=encode_user_items_mapping(svd_params.user_items_mapping)
                         )
 
 
@@ -77,4 +107,5 @@ def load_advanced_svd_model(filepath: str) -> AdvancedSVDModelParams:
     svd_params.items_bias = loaded_params["items_bias"]
     svd_params.users_latent_features = loaded_params["users_latent"]
     svd_params.items_latent_features = loaded_params["items_latent"]
+    svd_params.user_items_mapping = decode_user_items_mapping(loaded_params["user_items_mapping"])
     return svd_params
