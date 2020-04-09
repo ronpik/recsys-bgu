@@ -4,13 +4,15 @@ import os
 
 import numpy as np
 
+from recsys.cf.advancedmodel import load_advanced_svd_model
+
 module_dir = os.path.dirname(os.path.dirname(__file__))
 print(module_dir)
 sys.path.append(module_dir)
 
 import time
 
-from recsys.utils.data.yelp_dataset import load_yelp_dataset, split_dataset, reindex_data
+from recsys.utils.data.yelp_dataset import load_yelp_dataset, reindex_data
 from recsys.cf import RecommenderSystem, SVDModelEngine
 from recsys.cf.basemodel import load_svd_model
 from recsys.eval.evaltools import rmse
@@ -21,8 +23,9 @@ if __name__ == "__main__":
     train_path = "/home/ron/data/studies/bgu/recsys/ex1/data/trainData.csv"
     # sys.argv[2]
     test_path = "/home/ron/data/studies/bgu/recsys/ex1/data/testData.csv"
-    advanced_model = False # bool(sys.argv[3])
-    model_path = "/home/ron/data/studies/bgu/recsys/ex1/data/base-svd-model.npz" # sys.argv[4]
+    model_name = "svd++" #sys.argv[3]
+    # model_path = "/home/ron/data/studies/bgu/recsys/ex1/data/base-svd-model.npz" # sys.argv[4]
+    model_path = "/home/ron/data/studies/bgu/recsys/ex1/data/advanced-svd-model.npz" # sys.argv[4]
     start = time.time()
     print(f"load train data: {train_path}")
     train_df = load_yelp_dataset(train_path)
@@ -41,21 +44,24 @@ if __name__ == "__main__":
     print(f"re-indexing took {end - start:.2f} sec")
 
     cfModel = RecommenderSystem(random_seed=71070)
-    
+
     print("load model parameters")
     start = time.time()
-    if advanced_model:
-        svd_params = None #load_svd_model(model_path)
+    if model_name == "svd++":
+        svd_params = load_advanced_svd_model(model_path)
         cfModel.advanced_model = SVDModelEngine(svd_params)
-    else:
+    elif model_name == "svd":
         svd_params = load_svd_model(model_path)
         cfModel.base_model = SVDModelEngine(svd_params)
+    else:
+        raise Exception(f"Not a valid model name: {model_name}")
+
     end = time.time()
     print(f"loading model parameters took {end - start:.2f}")
 
     # evaluate on train data
     y_true = train_df.stars * 5
-    y_pred = cfModel.PredictRating(train_df, "svd")
+    y_pred = cfModel.PredictRating(train_df, model_name)
     train_score = rmse(y_true, y_pred)
     print(f"train - rmse: {train_score}")
 
@@ -77,7 +83,7 @@ if __name__ == "__main__":
 
 
     # evaluate on test data
-    y_pred = cfModel.PredictRating(test_df, "svd") * 5
+    y_pred = cfModel.PredictRating(test_df, model_name) * 5
     test_score = rmse(y_true, y_pred)
     print(f"test - rmse: {test_score}")
 

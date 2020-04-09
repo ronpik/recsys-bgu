@@ -49,7 +49,7 @@ class RecommenderSystem(object):
         # TODO(train the model)
         self.base_model = CombinedModel()
 
-    def PredictRating(self, data: pd.DataFrame, model_name="base") -> Sequence[int]:
+    def PredictRating(self, data: pd.DataFrame, model_name="svd") -> Sequence[int]:
         if model_name.startswith("svd"):
             users = data.user_id
             items = data.business_id

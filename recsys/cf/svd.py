@@ -16,7 +16,7 @@ from recsys.utils.data.yelp_dataset import split_dataset
 from recsys.cf import AbstractSVDModelParams
 
 INITIALIZE_LATENT_FEATURES_SCALE = 0.01
-ITERATION_BATCH_SIZE = 4_000_000
+ITERATION_BATCH_SIZE = 100_000
 
 
 class SVDModelEngine(abc.ABC):
@@ -83,18 +83,24 @@ class SVDModelEngine(abc.ABC):
                 .itertuples(index=False, name=None)
 
             batch_size = min(ITERATION_BATCH_SIZE, len(train_data))
-            train_ratings = islice(train_ratings, batch_size)
+            num_batches = len(train_data) // ITERATION_BATCH_SIZE + 1
 
             print(f"start iteration {num_iterations}")
-            start = time.time()
-            for u, i, r in tqdm.tqdm(train_ratings, total=batch_size):
-                r_est = self.model_parameters_.estimate_rating(u, i)
-                err = r - r_est
-                self.model_parameters_.update(
-                    u, i, err, self.regularization, self.__adaptive_learning_rate)
+            iteration_start = time.time()
+            for batch_num in range(num_batches):
+                batch = islice(train_ratings, batch_size)
+                print(f"start batch {batch_num}")
+                for u, i, r in tqdm.tqdm(batch, total=batch_size):
+                    r_est = self.model_parameters_.estimate_rating(u, i)
+                    err = r - r_est
+                    self.model_parameters_.update(
+                        u, i, err, self.regularization, self.__adaptive_learning_rate)
 
-            end = time.time()
-            print(f"iteration {num_iterations} took {int(end - start)} sec")
+                score_after_batch = self.__get_score(validation_ratings)
+                print(f"intermediate validation score: {score_after_batch}")
+
+            iteration_end = time.time()
+            print(f"iteration {num_iterations} took {int(iteration_end - iteration_start)} sec")
 
             # check for convergence
             train_score = self.__get_score(list(train_data.itertuples(index=False, name=None)))

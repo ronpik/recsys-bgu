@@ -13,6 +13,7 @@ class ConfusionMatrix(NamedTuple):
     fn: int
     tn: int
 
+
 def get_confusion_matrix(y_true: Sequence[float], y_pred: Sequence[float]) -> ConfusionMatrix:
     y_true = np.asarray(y_true)
     y_pred = np.asarray(y_pred)
@@ -23,5 +24,4 @@ def get_confusion_matrix(y_true: Sequence[float], y_pred: Sequence[float]) -> Co
     tn = np.logical_and(~y_true, ~y_pred)
     return ConfusionMatrix(tp, fp, fn, tn)
 
-def f1(y_true: Sequence[float], y_pred: Sequence[float]) -> float:
-    pass
+

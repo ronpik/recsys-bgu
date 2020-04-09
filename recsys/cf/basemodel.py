@@ -75,7 +75,7 @@ class BaseSVDModelParams(AbstractSVDModelParams):
                     (err * user_latent_features) - (regularization * item_latent_features))
 
 
-def save_base_svd_model_parameters(svd_params: BaseSVDModelParams, filepath: str):
+def save_base_svd_model(svd_params: BaseSVDModelParams, filepath: str):
     np.savez_compressed(filepath,
                         mean_rating=svd_params.mean_rating,
                         users_bias=svd_params.users_bias,

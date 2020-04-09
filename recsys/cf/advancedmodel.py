@@ -95,7 +95,8 @@ def save_advanced_svd_model(svd_params: AdvancedSVDModelParams, filepath: str):
                         items_bias=svd_params.items_bias,
                         users_latent=svd_params.users_latent_features,
                         items_latent=svd_params.items_latent_features,
-                        user_items_mapping=encode_user_items_mapping(svd_params.user_items_mapping)
+                        user_items_mapping=encode_user_items_mapping(svd_params.user_items_mapping),
+                        itemspp=svd_params.itemspp
                         )
 
 
@@ -108,4 +109,5 @@ def load_advanced_svd_model(filepath: str) -> AdvancedSVDModelParams:
     svd_params.users_latent_features = loaded_params["users_latent"]
     svd_params.items_latent_features = loaded_params["items_latent"]
     svd_params.user_items_mapping = decode_user_items_mapping(loaded_params["user_items_mapping"])
+    svd_params.itemspp = loaded_params["itemspp"]
     return svd_params

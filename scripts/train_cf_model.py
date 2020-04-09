@@ -1,15 +1,17 @@
 import sys
 import os
+
+from recsys.cf.advancedmodel import save_advanced_svd_model
+
 module_dir = os.path.dirname(os.path.dirname(__file__))
 print(module_dir)
 sys.path.append(module_dir)
 
 from recsys.utils.data.yelp_dataset import load_yelp_dataset, reindex_data
 from recsys.cf import RecommenderSystem
-from recsys.cf.basemodel import save_base_svd_model_parameters
+from recsys.cf.basemodel import save_base_svd_model
 
 import time
-
 
 if __name__ == "__main__":
     # sys.argv[1]
@@ -17,8 +19,8 @@ if __name__ == "__main__":
     # sys.argv[2]
     test_path = "/home/ron/data/studies/bgu/recsys/ex1/data/testData.csv"
     num_latent_features = 200  # int(sys.argv[3])
-    advanced_model = False # bool(sys.argv[4])
-    save_model_file = "/home/ron/data/studies/bgu/recsys/ex1/data/base-svd-model"
+    advanced_model = True  # bool(sys.argv[4])
+    save_model_file = "/home/ron/data/studies/bgu/recsys/ex1/data/advanced-svd-model"
     start = time.time()
     print(f"load train data: {train_path}")
     train_df = load_yelp_dataset(train_path)
@@ -40,8 +42,11 @@ if __name__ == "__main__":
     if advanced_model:
         print("train advanced model")
         cfModel.TrainAdvancedModel(train_df, num_latent_features)
-
         cfModel.PredictRating(test_df, "svd++")
+
+        if save_model_file is not None:
+            print(f"save base model parameters to {os.path.abspath(save_model_file)}")
+            save_advanced_svd_model(cfModel.advanced_model.model_parameters_, save_model_file)
 
     else:
         print("train base model")
@@ -50,7 +55,4 @@ if __name__ == "__main__":
 
         if save_model_file is not None:
             print(f"save base model parameters to {os.path.abspath(save_model_file)}")
-            save_base_svd_model_parameters(cfModel.base_model.model_parameters_, save_model_file)
-
-
-
+            save_base_svd_model(cfModel.base_model.model_parameters_, save_model_file)
