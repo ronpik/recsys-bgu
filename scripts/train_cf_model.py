@@ -18,9 +18,9 @@ if __name__ == "__main__":
     train_path = "/home/ron/data/studies/bgu/recsys/ex1/data/trainData.csv"
     # sys.argv[2]
     test_path = "/home/ron/data/studies/bgu/recsys/ex1/data/testData.csv"
-    num_latent_features = 200  # int(sys.argv[3])
+    num_latent_features = 100  # int(sys.argv[3])
     advanced_model = True  # bool(sys.argv[4])
-    save_model_file = "/home/ron/data/studies/bgu/recsys/ex1/data/advanced-svd-model"
+    save_model_file = "/home/ron/data/studies/bgu/recsys/ex1/data/svd++100-model.npz"
     start = time.time()
     print(f"load train data: {train_path}")
     train_df = load_yelp_dataset(train_path)

@@ -85,7 +85,7 @@ class SVDModelEngine(abc.ABC):
             batch_size = min(ITERATION_BATCH_SIZE, len(train_data))
             num_batches = len(train_data) // ITERATION_BATCH_SIZE + 1
 
-            print(f"start iteration {num_iterations}")
+            print(f"\nstart iteration {num_iterations}")
             iteration_start = time.time()
             for batch_num in range(num_batches):
                 batch = islice(train_ratings, batch_size)
@@ -103,6 +103,7 @@ class SVDModelEngine(abc.ABC):
             print(f"iteration {num_iterations} took {int(iteration_end - iteration_start)} sec")
 
             # check for convergence
+            print("calculate train score")
             train_score = self.__get_score(list(train_data.itertuples(index=False, name=None)))
             print(f"train score: {train_score}")
             new_score = self.__get_score(validation_ratings)
@@ -122,8 +123,8 @@ class SVDModelEngine(abc.ABC):
 
     def predict(self, users: Sequence[int], items: Sequence[int]) -> Sequence[float]:
         user_item_pairs = zip(users, items)
-        pred_sinle = self.model_parameters_.estimate_rating
-        return np.asarray(list(starmap(pred_sinle, user_item_pairs)))
+        pred_single = self.model_parameters_.estimate_rating
+        return np.asarray(list(starmap(pred_single, user_item_pairs)))
 
     def __get_score(self, ratings) -> float:
         r_true, r_pred = zip(*[(r, self.model_parameters_.estimate_rating(u, i)) \
