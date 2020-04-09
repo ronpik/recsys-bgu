@@ -9,3 +9,4 @@
 # data files
 *.npz
 *.np*
+*.bin

@@ -37,6 +37,9 @@ def average_ndpm(y_true: Sequence[float], y_pred: Sequence[float], users: Sequen
     sum_scores = 0
     for _, user_predictions in groupby(sorted_predictions, key=itemgetter(0)):
         _, user_true, user_pred = zip(*user_predictions)
+        if len(user_true) == 1:
+            continue
+
         user_score = ndpm(user_true, user_pred)
         sum_scores += user_score
         num_usres += 1
@@ -57,7 +60,7 @@ def ndpm(y_true: Sequence[float], y_pred: Sequence[float]) -> float:
             pair_distance = get_pair_order_distance(true_rank1, true_rank2, pred_rank1, pred_rank2)
             sum_distances += pair_distance
 
-    num_pairs = 0.5 * num_items * (num_items + 1)
+    num_pairs = 0.5 * num_items * (num_items - 1)
     return sum_distances / num_pairs
 
 

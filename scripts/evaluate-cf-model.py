@@ -65,9 +65,12 @@ if __name__ == "__main__":
     # evaluate on train data
     y_true = train_df.stars * 5
     users = train_df.user_id
+    print("performing predictions on train data")
     y_pred = cfModel.PredictRating(train_df, model_name)
-    train_score = rmse(y_true, y_pred)
+    print("calculating RMSE on train predictions")
+    train_score = rmse(y_true, y_pred * 5)
     print(f"train - rmse: {train_score}")
+    print("calculating NDPM on train predictions")
     ndpm_score = average_ndpm(y_true, y_pred, users)
     print(f"train - ndpm: {ndpm_score}")
 
