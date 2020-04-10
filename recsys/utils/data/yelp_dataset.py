@@ -159,24 +159,29 @@ def split_dataset(df: pd.DataFrame,
     random_generator = random.Random(random_seed)
 
     unique_users_count = Counter(df[USER_ID_FIELD])
-    relevant_unique_users = [u for u, c in unique_users_count.items() if c >= 5]
+    relevant_unique_users = [u for u, c in unique_users_count.items() if c >= 0]
     unique_items = df[BUSINESS_ID_FIELD].unique()
+
+    relevant_users_ratio = float(len(relevant_unique_users)) / len(unique_users_count)
 
     # ensure that users_size is a ratio (not a absolute size)
     if users_size > 1:
         users_size = float(users_size) / len(relevant_unique_users)
+        # fix user size according to relevant users only
+
+    users_size /= relevant_users_ratio
+    users_size = min(1, users_size)
 
     # assuming users are actually the index of the users.
 
     relevant_users_sample = random_gen.choice(
-        a=[False, True],
+        a=[True, False],
         size=len(relevant_unique_users),
         p=[users_size, 1 - users_size]
     )
     relevant_sample_mask = np.arange(len(relevant_unique_users))[relevant_users_sample]
     users_sample = np.zeros(len(unique_users_count))
     users_sample[relevant_sample_mask] = 1
-
 
     split_available_items = np.zeros(len(unique_items))
 

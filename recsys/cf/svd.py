@@ -79,8 +79,8 @@ class SVDModelEngine(abc.ABC):
         while (not self.__converged) and (num_iterations < self.max_iterations):
             print("shuffle batch")
             train_ratings = train_data \
-                .sample(frac=1, random_state=self.random.randint(0, 100)) \
                 .itertuples(index=False, name=None)
+                # .sample(frac=1, random_state=self.random.randint(0, 100)) \
 
             batch_size = min(ITERATION_BATCH_SIZE, len(train_data))
             train_ratings = islice(train_ratings, batch_size)
