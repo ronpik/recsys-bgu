@@ -2,6 +2,7 @@
 import abc
 
 import time
+from copy import deepcopy
 from math import sqrt
 from random import shuffle, Random, sample
 from typing import Sequence, NamedTuple, List, Tuple
@@ -28,9 +29,9 @@ class SVDModelEngine(abc.ABC):
     VALIDATION_ITEMS_PER_USER_SIZE = 0.4
 
     def __init__(self, svd_parameters: AbstractSVDModelParams,
-                 learning_rate: float = 0.008,
-                 lr_decrease_factor: float = 1.0,
-                 regularization: float = 0.02,
+                 learning_rate: float = 0.01,
+                 lr_decrease_factor: float = 0.9,
+                 regularization: float = 0.1,
                  converge_threshold: float = 1e-5,
                  max_iterations: int = 30,
                  random_seed: int = None
@@ -75,7 +76,9 @@ class SVDModelEngine(abc.ABC):
         prev_score = self.__get_score(validation_ratings)
         print(f"initial score: {prev_score}")
 
-        num_iterations = 0
+        best_params = deepcopy(self.model_parameters_)
+
+        num_iterations = 1
         while (not self.__converged) and (num_iterations < self.max_iterations):
             print("shuffle batch")
             train_ratings = train_data \
@@ -87,7 +90,7 @@ class SVDModelEngine(abc.ABC):
 
             print(f"\nstart iteration {num_iterations}")
             iteration_start = time.time()
-            for batch_num in range(num_batches):
+            for batch_num in range(1, num_batches + 1):
                 batch = islice(train_ratings, batch_size)
                 print(f"start batch {batch_num}")
                 for u, i, r in tqdm.tqdm(batch, total=batch_size):
@@ -109,11 +112,16 @@ class SVDModelEngine(abc.ABC):
             new_score = self.__get_score(validation_ratings)
             print(f"validation score: {new_score}")
             self.__converged = self.__is_converged(prev_score, new_score)
+            if new_score < prev_score:
+                best_params = deepcopy(self.model_parameters_)
+
             prev_score = new_score
 
             # update values for the next iteration
             self.__adaptive_learning_rate *= self.lr_decrease_factor
             num_iterations += 1
+
+        self.__model_parameters = best_params
 
     def __initialize_model_parameters(self, train_data: pd.DataFrame, n_latent: int):
         self.n_users, self.n_items = train_data.shape

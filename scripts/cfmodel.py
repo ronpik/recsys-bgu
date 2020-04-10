@@ -80,14 +80,16 @@ def run_evaluation(train_df: pd.DataFrame, test_df: pd.DataFrame, cf_model: Reco
     y_mean = np.repeat(mean, len(y_true))
     evaluate(y_true, y_mean, users)
     print(f"\nEvaluate on train-set")
+    y_train_true = 5 * train_df.stars
+    train_users = train_df.user_id
     y_train_pred = np.multiply(5, cf_model.PredictRating(train_df, model_name))
-    evaluate(y_true, y_train_pred, users)
+    evaluate(y_train_true, y_train_pred, train_users)
 
 
 def evaluate(y_true: Sequence[int], y_pred: Sequence[float], users: Sequence[Any]):
     print("calculating RMSE on predictions")
-    train_score = rmse(y_true, y_pred)
-    print(f"rmse: {train_score}")
+    rmse_score = rmse(y_true, y_pred)
+    print(f"rmse: {rmse_score}")
     print("calculating NDPM on predictions")
     ndpm_score = average_ndpm(y_true, y_pred, users)
     print(f"ndpm: {ndpm_score}")
@@ -96,7 +98,7 @@ def evaluate(y_true: Sequence[int], y_pred: Sequence[float], users: Sequence[Any
 def save_model(model_name: str, cf_model: RecommenderSystem, outpath: str):
     print(f"save trained model {model_name} to {os.path.abspath(outpath)}")
     if model_name == SVD_MODEL:
-        save_base_svd_model(cf_model.advanced_model.model_parameters_, outpath)
+        save_base_svd_model(cf_model.base_model.model_parameters_, outpath)
     elif model_name == SVD_ADVANCED_MODEL:
         save_advanced_svd_model(cf_model.advanced_model.model_parameters_, outpath)
 
@@ -131,7 +133,7 @@ if __name__ == "__main__":
                               help="name of the model to use to perform factorization")
     train_parser.add_argument("--num-latent", "-l", type=int, default=50,
                               help="number of latent features in the factorization for users and items")
-    train_parser.add_argument("--outpath", "-o", type=int, default="cf_model",
+    train_parser.add_argument("--outpath", "-o", type=str, default="cf_model",
                               help="a path where to store the trained model")
 
     eval_parser = subparsers.add_parser("eval")
