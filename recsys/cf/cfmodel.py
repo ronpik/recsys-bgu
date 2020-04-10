@@ -4,6 +4,7 @@ from recsys.cf.basemodel import BaseModel
 from recsys.cf.advancedmodel import AdvancedModel
 from recsys.cf.combined import CombinedModel
 from recsys.cf.sentiment import SentimentModel
+from recsys.cf.suprise import SupriseModel
 from recsys.utils.data.yelp_dataset import prepare_data_for_cf, split_dataset
 import time
 
@@ -41,6 +42,10 @@ class RecommenderSystem(object):
     def TrainSentimentModel(self):
         self.sentiment_model = SentimentModel()
         self.sentiment_model.fit(self.train_data.drop('stars'), self.train_data.stars)
+
+    def TrainSupriseModel(self):
+        self.suprise_model = SupriseModel()
+        self.suprise_model.fit(self.train_data)
 
     def TrainCombinedModel(self):
         """

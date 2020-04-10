@@ -4,3 +4,4 @@ pandas
 scikit-learn
 vaderSentiment
 tqdm
+surprise
