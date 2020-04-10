@@ -5,7 +5,6 @@ from surprise import Dataset
 import pandas as pd
 import tqdm
 
-
 class SupriseModel(object):
     def __init__(self):
         self.model = None
