@@ -1,4 +1,5 @@
 import time
+from typing import Sequence, Any
 
 import pandas as pd
 
@@ -7,7 +8,7 @@ from recsys.cf.basemodel import BaseSVDModelParams
 from recsys.cf.advancedmodel import AdvancedSVDModelParams
 from recsys.cf.combined import CombinedModel
 from recsys.cf.sentiment import SentimentModel
-from recsys.cf.suprise import SupriseModel
+from recsys.cf.surprise import SupriseModel
 from recsys.utils.data.yelp_dataset import prepare_data_for_cf, split_dataset
 
 
@@ -19,9 +20,11 @@ class RecommenderSystem(object):
 
     def __init__(self, random_seed: int = None):
         self.base_model = None
+        self.advanced_model = None
+        self.surprise_model = None
         self.sentiment_model = None
         self.combined_model = None
-        self. random_seed = random_seed
+        self.random_seed = random_seed
 
     def TrainBaseModel(self, train_data: pd.DataFrame, n_latent: int):
         print(f"number of latent features: {n_latent}")
@@ -35,15 +38,13 @@ class RecommenderSystem(object):
         self.advanced_model = SVDModelEngine(advanced_svd_parameters, random_seed=self.random_seed)
         self.advanced_model.fit(train_data, n_latent)
 
-    def TrainSentimentModel(self, train_data: pd.DataFrame):
+    def TrainSentimentModel(self, X_train: pd.DataFrame, y_train: Sequence[int]):
         self.sentiment_model = SentimentModel()
-        X = train_data.drop('stars')
-        y = train_data.stars
-        self.sentiment_model.fit(X, y)
+        self.sentiment_model.fit(X_train, y_train)
 
-    def TrainSupriseModel(self):
-        self.suprise_model = SupriseModel()
-        self.suprise_model.fit(self.train_data)
+    def TrainSupriseModel(self, train_data):
+        self.surprise_model = SupriseModel()
+        self.surprise_model.fit(train_data)
 
     def TrainCombinedModel(self):
         """
@@ -53,7 +54,7 @@ class RecommenderSystem(object):
         # TODO(train the model)
         self.base_model = CombinedModel()
 
-    def PredictRating(self, data: pd.DataFrame, model_name="base"):
+    def PredictRating(self, data: pd.DataFrame, model_name="svd") -> Sequence[int]:
         if model_name.startswith("svd"):
             users = data.user_id
             items = data.business_id
@@ -67,3 +68,5 @@ class RecommenderSystem(object):
             return self.sentiment_model.predict(data)
         elif model_name == "combined":
             return self.combined_model.predict(data)
+        elif model_name == "surprise":
+            return self.surprise_model.predict(data)

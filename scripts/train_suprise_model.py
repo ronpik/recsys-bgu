@@ -21,8 +21,11 @@ if __name__ == "__main__":
     print(f"train data loaded with shape: {train_df.shape}")
     print(f"test data loaded with shape: {test_df.shape}")
 
-    SupriseModel = RecommenderSystem(train_df, test_df)
-    SupriseModel.TrainSupriseModel()
+    SupriseModel = RecommenderSystem()
+    SupriseModel.TrainSupriseModel(train_df)
+
+    # evaluation
+    # use test_df
 
 
 

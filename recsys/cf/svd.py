@@ -2,6 +2,7 @@
 import abc
 
 import time
+from copy import deepcopy
 from math import sqrt
 from random import shuffle, Random, sample
 from typing import Sequence, NamedTuple, List, Tuple
@@ -16,7 +17,7 @@ from recsys.utils.data.yelp_dataset import split_dataset
 from recsys.cf import AbstractSVDModelParams
 
 INITIALIZE_LATENT_FEATURES_SCALE = 0.01
-ITERATION_BATCH_SIZE = 4_000_000
+ITERATION_BATCH_SIZE = 100_000
 
 
 class SVDModelEngine(abc.ABC):
@@ -28,9 +29,9 @@ class SVDModelEngine(abc.ABC):
     VALIDATION_ITEMS_PER_USER_SIZE = 0.4
 
     def __init__(self, svd_parameters: AbstractSVDModelParams,
-                 learning_rate: float = 0.008,
-                 lr_decrease_factor: float = 1.0,
-                 regularization: float = 0.02,
+                 learning_rate: float = 0.01,
+                 lr_decrease_factor: float = 0.9,
+                 regularization: float = 0.1,
                  converge_threshold: float = 1e-5,
                  max_iterations: int = 30,
                  random_seed: int = None
@@ -50,7 +51,7 @@ class SVDModelEngine(abc.ABC):
         self.max_iterations = max_iterations
 
         self.random = Random(random_seed)
-    
+
     @property
     def model_parameters_(self) -> AbstractSVDModelParams:
         return self.__model_parameters
@@ -75,38 +76,52 @@ class SVDModelEngine(abc.ABC):
         prev_score = self.__get_score(validation_ratings)
         print(f"initial score: {prev_score}")
 
-        num_iterations = 0
+        best_params = deepcopy(self.model_parameters_)
+
+        num_iterations = 1
         while (not self.__converged) and (num_iterations < self.max_iterations):
             print("shuffle batch")
             train_ratings = train_data \
+                .sample(frac=1, random_state=self.random.randint(0, 100)) \
                 .itertuples(index=False, name=None)
-                # .sample(frac=1, random_state=self.random.randint(0, 100)) \
 
             batch_size = min(ITERATION_BATCH_SIZE, len(train_data))
-            train_ratings = islice(train_ratings, batch_size)
+            num_batches = len(train_data) // ITERATION_BATCH_SIZE + 1
 
-            print(f"start iteration {num_iterations}")
-            start = time.time()
-            for u, i, r in tqdm.tqdm(train_ratings, total=batch_size):
-                r_est = self.model_parameters_.estimate_rating(u, i)
-                err = r - r_est
-                self.model_parameters_.update(
-                    u, i, err, self.regularization, self.__adaptive_learning_rate)
+            print(f"\nstart iteration {num_iterations}")
+            iteration_start = time.time()
+            for batch_num in range(1, num_batches + 1):
+                batch = islice(train_ratings, batch_size)
+                print(f"start batch {batch_num}")
+                for u, i, r in tqdm.tqdm(batch, total=batch_size):
+                    r_est = self.model_parameters_.estimate_rating(u, i)
+                    err = r - r_est
+                    self.model_parameters_.update(
+                        u, i, err, self.regularization, self.__adaptive_learning_rate)
 
-            end = time.time()
-            print(f"iteration {num_iterations} took {int(end - start)} sec")
+                score_after_batch = self.__get_score(validation_ratings)
+                print(f"intermediate validation score: {score_after_batch}")
+
+            iteration_end = time.time()
+            print(f"iteration {num_iterations} took {int(iteration_end - iteration_start)} sec")
 
             # check for convergence
+            print("calculate train score")
             train_score = self.__get_score(list(train_data.itertuples(index=False, name=None)))
             print(f"train score: {train_score}")
             new_score = self.__get_score(validation_ratings)
             print(f"validation score: {new_score}")
             self.__converged = self.__is_converged(prev_score, new_score)
+            if new_score < prev_score:
+                best_params = deepcopy(self.model_parameters_)
+
             prev_score = new_score
 
             # update values for the next iteration
             self.__adaptive_learning_rate *= self.lr_decrease_factor
             num_iterations += 1
+
+        self.__model_parameters = best_params
 
     def __initialize_model_parameters(self, train_data: pd.DataFrame, n_latent: int):
         self.n_users, self.n_items = train_data.shape
@@ -116,8 +131,8 @@ class SVDModelEngine(abc.ABC):
 
     def predict(self, users: Sequence[int], items: Sequence[int]) -> Sequence[float]:
         user_item_pairs = zip(users, items)
-        pred_sinle = self.model_parameters_.estimate_rating
-        return list(starmap(pred_sinle, user_item_pairs))
+        pred_single = self.model_parameters_.estimate_rating
+        return np.asarray(list(starmap(pred_single, user_item_pairs)))
 
     def __get_score(self, ratings) -> float:
         r_true, r_pred = zip(*[(r, self.model_parameters_.estimate_rating(u, i)) \

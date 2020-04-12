@@ -14,7 +14,6 @@ from recsys.eval.evaltools import rmse
 from recsys.utils.data.yelp_dataset import split_dataset
 from recsys.cf import SVDModelEngine, AbstractSVDModelParams
 
-
 INITIALIZE_LATENT_FEATURES_SCALE = 0.005
 ITERATION_BATCH_SIZE = 300_000
 
@@ -30,7 +29,7 @@ class BaseSVDModelParams(AbstractSVDModelParams):
         self.items_bias: np.ndarray = None
         self.users_latent_features: np.ndarray = None
         self.items_latent_features: np.ndarray = None
-    
+
     def initialize_parameters(self, data: pd.DataFrame, latent_dim: int):
         ratings = data.iloc[:, 2]
         self.mean_rating = ratings.sum() / len(ratings)
@@ -48,11 +47,11 @@ class BaseSVDModelParams(AbstractSVDModelParams):
         scale = INITIALIZE_LATENT_FEATURES_SCALE
         n_users = users.max() + 1
         n_items = items.max() + 1
-        
-        self.users_latent_features = np.random.normal(0, scale, n_users * latent_dim)\
+
+        self.users_latent_features = np.random.normal(0, scale, n_users * latent_dim) \
             .reshape(n_users, latent_dim)
-        
-        self.items_latent_features = np.random.normal(0, scale, n_items * latent_dim)\
+
+        self.items_latent_features = np.random.normal(0, scale, n_items * latent_dim) \
             .reshape(n_items, latent_dim)
 
     def estimate_rating(self, user: int, item: int) -> float:
@@ -68,20 +67,23 @@ class BaseSVDModelParams(AbstractSVDModelParams):
         self.users_bias[user] += learning_rate * (err - (regularization * self.users_bias[user]))
         self.items_bias[item] += learning_rate * (err - (regularization * self.items_bias[item]))
 
-        user_latent_features = self.users_latent_features[user] # p_i
-        item_latent_features = self.items_latent_features[item] # q_i
-        self.users_latent_features[user] += learning_rate * ((err * item_latent_features) - (regularization * user_latent_features))
-        self.items_latent_features[item] += learning_rate * ((err * user_latent_features) - (regularization * item_latent_features))
+        user_latent_features = self.users_latent_features[user]  # p_i
+        item_latent_features = self.items_latent_features[item]  # q_i
+        self.users_latent_features[user] += learning_rate * (
+                    (err * item_latent_features) - (regularization * user_latent_features))
+        self.items_latent_features[item] += learning_rate * (
+                    (err * user_latent_features) - (regularization * item_latent_features))
 
 
-def save_base_svd_model_parameters(svd_params: BaseSVDModelParams, filepath: str):    
+def save_base_svd_model(svd_params: BaseSVDModelParams, filepath: str):
     np.savez_compressed(filepath,
-        mean_rating=svd_params.mean_rating,
-        users_bias=svd_params.users_bias,
-        items_bias=svd_params.items_bias,
-        users_latent=svd_params.users_latent_features,
-        items_latent=svd_params.items_latent_features
-    )
+                        mean_rating=svd_params.mean_rating,
+                        users_bias=svd_params.users_bias,
+                        items_bias=svd_params.items_bias,
+                        users_latent=svd_params.users_latent_features,
+                        items_latent=svd_params.items_latent_features
+                        )
+
 
 def load_svd_model(filepath: str) -> BaseSVDModelParams:
     svd_params = BaseSVDModelParams()

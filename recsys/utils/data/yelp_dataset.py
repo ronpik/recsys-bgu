@@ -140,51 +140,6 @@ def df_to_sparse(df: pd.DataFrame, max_row_index: int = None, max_col_index: int
     print("\tcoo to csr matrix")
     return coo_mat.tocsr()
 
-def split_dataset(df: pd.DataFrame, \
-    users_size: float, \
-    items_per_user: float, \
-    random_seed: int = None
-) -> Tuple[pd.DataFrame, pd.DataFrame]:
-    """
-    split a given dataset into two different datasets, having different elements.
-    returns two datases, the first has the rows of the given dataset except those that where splitted accoding to the other parameters.
-    users size the the ratio of users to sample items from, and the items_per_user is the ratio of elements to split from the main dataset
-    for each of the chosen users.
-    """
-    if items_per_user >= 1:
-        raise ValueError( \
-            f"users_size should be a number greater than 0 and smaller than 1: {items_per_user}")
-    
-    random_generator = random.Random(random_seed)
-
-    unique_users = df[USER_ID_FIELD].unique()
-    # ensure that users_size is an absolute size int (not a ratio)
-    if users_size < 1:
-        users_size = int(users_size * len(unique_users))
-
-    users_sample = set(np.random.choice(unique_users, users_size, replace=False))
-    available_users = set()
-    def choose_item_rating(user: str)  -> bool:
-        if user in users_sample:
-            if user in available_users:                
-                return random_generator.random() < items_per_user
-            
-            available_users.add(user)
-        
-        return False
-            
-        # return user in users_sample \
-        #     and random_generator.random() < items_per_user
-
-    mask = np.full(len(df.index), fill_value=False)
-    for i, user_id in enumerate(df[USER_ID_FIELD]):
-        if choose_item_rating(user_id):
-            mask[i] = True
-    
-    reduced_df = df[~mask]
-    split_df = df[mask]
-    return reduced_df, split_df
-
 
 def split_dataset(df: pd.DataFrame,
                   users_size: float,
@@ -204,29 +159,24 @@ def split_dataset(df: pd.DataFrame,
     random_generator = random.Random(random_seed)
 
     unique_users_count = Counter(df[USER_ID_FIELD])
-    relevant_unique_users = [u for u, c in unique_users_count.items() if c >= 0]
+    relevant_unique_users = [u for u, c in unique_users_count.items() if c >= 5]
     unique_items = df[BUSINESS_ID_FIELD].unique()
-
-    relevant_users_ratio = float(len(relevant_unique_users)) / len(unique_users_count)
 
     # ensure that users_size is a ratio (not a absolute size)
     if users_size > 1:
         users_size = float(users_size) / len(relevant_unique_users)
-        # fix user size according to relevant users only
-
-    users_size /= relevant_users_ratio
-    users_size = min(1, users_size)
 
     # assuming users are actually the index of the users.
 
     relevant_users_sample = random_gen.choice(
-        a=[True, False],
+        a=[False, True],
         size=len(relevant_unique_users),
         p=[users_size, 1 - users_size]
     )
     relevant_sample_mask = np.arange(len(relevant_unique_users))[relevant_users_sample]
     users_sample = np.zeros(len(unique_users_count))
     users_sample[relevant_sample_mask] = 1
+
 
     split_available_items = np.zeros(len(unique_items))
 

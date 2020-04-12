@@ -1,6 +1,8 @@
 import sys
 import time
 
+from scripts.cfmodel import evaluate
+
 sys.path.append('../recsys')
 from recsys.cf import RecommenderSystem
 import pandas as pd
@@ -9,10 +11,10 @@ from recsys.cf.sentiment import generate_feature_set
 
 
 if __name__ == "__main__":
-    train_path = sys.argv[1]
-    test_path = sys.argv[2]
-    train_feature_set_path = sys.argv[3]
-    test_feature_set_path = sys.argv[4]
+    train_path = "/home/ron/data/studies/bgu/recsys/ex1/data/trainData.csv" #sys.argv[1]
+    test_path = "/home/ron/data/studies/bgu/recsys/ex1/data/testData.csv" #sys.argv[2]
+    train_feature_set_path = "/home/ron/data/studies/bgu/recsys/ex1/data/yelp_train_feature_set.pkl" #sys.argv[3]
+    test_feature_set_path = "/home/ron/data/studies/bgu/recsys/ex1/data/yelp_test_feature_set.pkl" #sys.argv[4]
 
     start = time.time()
     print(f"load train data: {train_path}")
@@ -25,24 +27,28 @@ if __name__ == "__main__":
     print(f"train data loaded with shape: {train_df.shape}")
     print(f"test data loaded with shape: {test_df.shape}")
 
-    if train_feature_set_path & test_feature_set_path:
+    y_train = test_df.stars
+    X_train, X_test = None, None
+    if bool(train_feature_set_path) and bool(test_feature_set_path):
+        print("load pre-calculated features")
         X_train = pd.read_pickle(train_feature_set_path)
         y_train = train_df.stars 
 
         X_test = pd.read_pickle(test_feature_set_path)
         y_test = test_df.stars
-
-        SentimentModel = RecommenderSystem(X_train, X_test)
-        SentimentModel.TrainSentimentModel()
-    
     else:
         X_train = generate_feature_set(train_df.text)
         y_train = train_df.stars 
         X_test = generate_feature_set(train_df.text)
         y_test = test_df.stars
 
-        SentimentModel = RecommenderSystem(X_train, X_test)
-        SentimentModel.TrainSentimentModel()
+    recsys_model = RecommenderSystem()
+    recsys_model.TrainSentimentModel(X_train, y_train)
+    y_pred = recsys_model.PredictRating(X_test, "sentiment")
+    users = test_df.user_id
+    y_true = test_df.stars
+    evaluate(y_true, y_pred, users)
+
         
 
 
