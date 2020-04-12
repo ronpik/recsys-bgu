@@ -26,12 +26,12 @@ class SVDModelEngine(abc.ABC):
     """
 
     VALIDATION_USERS_SIZE = 0.5
-    VALIDATION_ITEMS_PER_USER_SIZE = 0.4
+    VALIDATION_ITEMS_PER_USER_SIZE = 0.3
 
     def __init__(self, svd_parameters: AbstractSVDModelParams,
-                 learning_rate: float = 0.01,
-                 lr_decrease_factor: float = 0.9,
-                 regularization: float = 0.1,
+                 learning_rate: float = 0.005,
+                 lr_decrease_factor: float = 0.995,
+                 regularization: float = 0.02,
                  converge_threshold: float = 1e-5,
                  max_iterations: int = 30,
                  random_seed: int = None
@@ -44,7 +44,7 @@ class SVDModelEngine(abc.ABC):
 
         self.initial_learning_rate = learning_rate
         self.__adaptive_learning_rate = learning_rate
-        self.lr_decrease_factor = lr_decrease_factor
+        self.lr_decay = lr_decrease_factor
         self.regularization = regularization
         self.converge_threshold = converge_threshold
         self.__converged = False
@@ -101,6 +101,7 @@ class SVDModelEngine(abc.ABC):
 
                 score_after_batch = self.__get_score(validation_ratings)
                 print(f"intermediate validation score: {score_after_batch}")
+                self.__adaptive_learning_rate *= self.lr_decay
 
             iteration_end = time.time()
             print(f"iteration {num_iterations} took {int(iteration_end - iteration_start)} sec")
@@ -118,7 +119,6 @@ class SVDModelEngine(abc.ABC):
             prev_score = new_score
 
             # update values for the next iteration
-            self.__adaptive_learning_rate *= self.lr_decrease_factor
             num_iterations += 1
 
         self.__model_parameters = best_params

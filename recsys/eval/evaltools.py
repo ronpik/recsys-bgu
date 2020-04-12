@@ -41,6 +41,9 @@ def average_ndpm(y_true: Sequence[float], y_pred: Sequence[float], users: Sequen
             continue
 
         user_score = ndpm(user_true, user_pred)
+        if user_score is None:
+            continue
+
         sum_scores += user_score
         num_usres += 1
 
@@ -50,6 +53,7 @@ def average_ndpm(y_true: Sequence[float], y_pred: Sequence[float], users: Sequen
 def ndpm(y_true: Sequence[float], y_pred: Sequence[float]) -> float:
     num_items = len(y_true)
     sum_distances = 0
+    num_relevant_pairs = 0
     for i in range(num_items - 1):
         true_rank1 = y_true[i]
         pred_rank1 = y_pred[i]
@@ -57,11 +61,17 @@ def ndpm(y_true: Sequence[float], y_pred: Sequence[float]) -> float:
             true_rank2 = y_true[j]
             pred_rank2 = y_pred[j]
 
+            if true_rank1 == true_rank2:
+                continue
+
             pair_distance = get_pair_order_distance(true_rank1, true_rank2, pred_rank1, pred_rank2)
             sum_distances += pair_distance
+            num_relevant_pairs += 1
 
-    num_pairs = 0.5 * num_items * (num_items - 1)
-    return sum_distances / num_pairs
+    if num_relevant_pairs == 0:
+        return None
+
+    return sum_distances / num_relevant_pairs
 
 
 def get_pair_order_value(rank1, rank2) -> int:
@@ -74,14 +84,11 @@ def get_pair_order_value(rank1, rank2) -> int:
 
 
 def get_pair_order_distance(true_rank1, true_rank2, pred_rank1, pred_rank2):
-    true_orde_value = get_pair_order_value(true_rank1, true_rank2)
-    if true_orde_value == 0:
-        return 0
-
     pred_order_value = get_pair_order_value(pred_rank1, pred_rank2)
     if pred_order_value == 0:
         return 0.5
 
+    true_orde_value = get_pair_order_value(true_rank1, true_rank2)
     if true_orde_value == pred_order_value:
         return 0
 

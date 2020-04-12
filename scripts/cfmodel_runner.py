@@ -8,7 +8,7 @@ import numpy as np
 import pandas as pd
 
 
-module_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), "recsys")
+module_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 print(module_dir)
 sys.path.append(module_dir)
 
@@ -136,21 +136,23 @@ if __name__ == "__main__":
 
     train_parser = subparsers.add_parser("train")
     train_parser.set_defaults(action=RUN_TRAIN)
-    train_parser.add_argument("trainset", type=str)
-    train_parser.add_argument("testset", type=str)
+    train_parser.add_argument("trainset", type=str, help="a path to train dataset")
+    train_parser.add_argument("testset", type=str, help="a path to test dataset")
     train_parser.add_argument("--model-name", "-m", type=str, default="svd",
-                              help="name of the model to use to perform factorization")
+                              help="name of the model to use to perform factorization, or other methods."
+                                   "\nthe name must be one of {svd, svd++, sentiment, surprise}")
     train_parser.add_argument("--num-latent", "-l", type=int, default=50,
-                              help="number of latent features in the factorization for users and items")
+                              help="number of latent features in the factorization for users and items.")
     train_parser.add_argument("--outpath", "-o", type=str, default="cf_model",
                               help="a path where to store the trained model")
 
     eval_parser = subparsers.add_parser("eval")
     eval_parser.set_defaults(action=RUN_EVAL)
-    eval_parser.add_argument("trainset", type=str)
-    eval_parser.add_argument("testset", type=str)
+    eval_parser.add_argument("trainset", type=str, help="a path to train dataset")
+    eval_parser.add_argument("testset", type=str, help="a path to test dataset")
     eval_parser.add_argument("--model-name", "-m", type=str, default="svd",
-                             help="name of the model to be loaded")
+                             help="name of the model to be loaded"
+                                  "\nthe name must be one of {svd, svd++, sentiment, surprise}")
     eval_parser.add_argument("--model-path", "-p", type=str,
                              help="path from where to load the model")
 

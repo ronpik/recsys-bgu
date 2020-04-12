@@ -169,7 +169,7 @@ def split_dataset(df: pd.DataFrame,
     # assuming users are actually the index of the users.
 
     relevant_users_sample = random_gen.choice(
-        a=[False, True],
+        a=[True, False],
         size=len(relevant_unique_users),
         p=[users_size, 1 - users_size]
     )

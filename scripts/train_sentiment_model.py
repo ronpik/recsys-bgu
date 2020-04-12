@@ -1,7 +1,7 @@
 import sys
 import time
 
-from scripts.cfmodel import evaluate
+from scripts.cfmodel_runner import evaluate
 
 sys.path.append('../recsys')
 from recsys.cf import RecommenderSystem
