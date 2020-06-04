@@ -9,3 +9,9 @@
 # data files
 *.npz
 *.np*
+*.pkl
+*.zip
+*.csv
+*.json
+*.jsonl
+*.ndjson
