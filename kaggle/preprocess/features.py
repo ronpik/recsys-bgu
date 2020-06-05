@@ -6,7 +6,8 @@ import numpy as np
 import pandas as pd
 import sklearn
 
-from kaggle.preprocess.utils import filter_by_occurrence, to_one_hot_encoding, create_categories_index_mapping
+from kaggle.preprocess.utils import filter_by_occurrence, to_one_hot_encoding, create_categories_index_mapping, \
+    NON_FREQ_NAME
 
 # todo replace dict by list of tuples to maintain order in all python versions
 FEATURES_MIN_THRESHOLDS = [
@@ -42,6 +43,7 @@ NUMERIC_FEATURES = [
 ]
 
 TARGET_TAXONOMY_FIELD = "target_item_taxonomy"
+NO_TAX_CATEGORY_VALUE = "NO_CATEGORY"
 USER_RECS_FIELD = "user_recs"
 USER_TARGET_RECS_FIELD = "user_target_recs"
 USER_CLICKS_FIELD = "user_clicks"
@@ -117,7 +119,7 @@ class FeaturesProcessor(object):
     def transform(self, data: pd.DataFrame) -> np.ndarray:
         features = []
         categorical_features = list(map(itemgetter(0), FEATURES_MIN_THRESHOLDS)) + OTHER_CATEGORICAL_FEATURES
-        for field, _ in categorical_features:
+        for field in categorical_features:
             index_mapping = self.ohe_index_mapping[field]
             ohe = create_ohe_features(data[field], index_mapping)
             features.append(ohe)
@@ -140,7 +142,7 @@ class FeaturesProcessor(object):
         return np.hstack(features)
 
     def fit_transform(self, data: pd.DataFrame) -> np.ndarray:
-        self.fit(data)\
+        return self.fit(data)\
             .transform(data)
 
 
@@ -156,11 +158,12 @@ def create_ohe_index_with_header(values: Sequence[str],
     return index_mapping, header
 
 
-def create_ohe_features(values: Sequence[str], categories_index_mapping: Dict[str, int]) -> np.ndarray[bool]:
+def create_ohe_features(values: Sequence[str], categories_index_mapping: Dict[str, int]) -> np.ndarray:
     num_unique = len(categories_index_mapping)
+    non_freq_item_index = categories_index_mapping.get(NON_FREQ_NAME)
     ohe = np.zeros((len(values), num_unique), dtype=bool)
     for i, item in enumerate(values):
-        item_index = categories_index_mapping[item]
+        item_index = categories_index_mapping.get(item, non_freq_item_index)
         ohe[i][item_index] = True
 
     return ohe
@@ -175,7 +178,8 @@ def get_categories_by_depth(taxonomy_values: Sequence[str]) -> List[List[str]]:
     categories_by_hierarchy = [[], [], []]
     for tax in taxonomy_values:
         tax_categories = tax.split("~")
-        for i, category in enumerate(tax_categories):
+        for i in range(len(categories_by_hierarchy)):
+            category = tax_categories[i] if i < len(tax_categories) else NO_TAX_CATEGORY_VALUE
             categories_by_hierarchy[i].append(category)
 
     return categories_by_hierarchy
@@ -217,13 +221,16 @@ def get_numeric_headers() -> List[str]:
 
 
 def process_numeric_features(data: pd.DataFrame, numeric_fields: List[str]) -> np.ndarray:
-    users_clicks_ratio = data[USER_CLICKS_FIELD].values / data[USER_RECS_FIELD].values
-    user_target_recs_ratio = data[USER_TARGET_RECS_FIELD].values / data[USER_RECS_FIELD].values
-    features = [users_clicks_ratio, user_target_recs_ratio]
+    user_recs = data[USER_RECS_FIELD].values + 1
 
-    for field in numeric_fields:
-        features.append(data[field].values)
+    users_clicks_ratio = data[USER_CLICKS_FIELD].values / user_recs
+    users_clicks_ratio[user_recs == 0] = 0
 
+    user_target_recs_ratio = data[USER_TARGET_RECS_FIELD].values / user_recs
+    user_target_recs_ratio[user_recs == 0] = 0
+
+    features = [users_clicks_ratio.reshape(-1, 1), user_target_recs_ratio.reshape(-1, 1)]
+    features.append(data[numeric_fields].values)
     return np.hstack(features)
 
 
@@ -243,7 +250,7 @@ def process_temporal_features(data: pd.DataFrame, min_view_time: int) -> np.ndar
 
 
 def process_view_time_features(values: Sequence[int], min_value: int) -> np.ndarray:
-    return np.asarray(values) - min_value
+    return (np.asarray(values) - min_value).reshape(-1, 1)
 
 
 def get_weekday_feature_header() -> Sequence[str]:
@@ -292,5 +299,5 @@ def process_hour_features(values: Sequence[int]) -> np.ndarray:
     return features
 
 
-def process_gmt_offset_features(values: Sequence[int]) -> np.ndarray[np.uint8]:
-    return np.asarray(values)
+def process_gmt_offset_features(values: Sequence[int]) -> np.ndarray:
+    return np.asarray(values).reshape(-1, 1)

@@ -11,7 +11,7 @@ NON_FREQ_NAME = "unk"
 
 def filter_by_occurrence(values: Sequence[str], min_count: int) -> pd.Series:
     counts = Counter(values)
-    frequent_items = set(map(itemgetter(0), takewhile(lambda c: c[1] >= min_count, counts)))
+    frequent_items = set(map(itemgetter(0), takewhile(lambda c: c[1] >= min_count, counts.items())))
     mapped_items = pd.Series(item if item in frequent_items else NON_FREQ_NAME for item in values)
     return mapped_items
 
