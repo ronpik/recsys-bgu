@@ -142,8 +142,7 @@ class FeaturesProcessor(object):
         return np.hstack(features)
 
     def fit_transform(self, data: pd.DataFrame) -> np.ndarray:
-        return self.fit(data)\
-            .transform(data)
+        return self.fit(data).transform(data)
 
 
 def create_ohe_index_with_header(values: Sequence[str],
