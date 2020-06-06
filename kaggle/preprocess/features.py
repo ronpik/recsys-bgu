@@ -77,7 +77,9 @@ NIGHT = 5
 
 
 class FeaturesProcessor(object):
-    def __init__(self):
+    def __init__(self, onehot: bool = False):
+        self.__onehot = onehot
+
         # map between field and category name to the index in the one hot encoding og this feature
         self.ohe_index_mapping: Dict[str, Dict[str, int]] = None
         self.page_view_min_time: int = None
@@ -85,18 +87,29 @@ class FeaturesProcessor(object):
         self.__taxonomy_max_depth: int = None
 
     def fit(self, data: pd.DataFrame) -> 'FeaturesProcessor':
+        """
+
+        :param data:
+        :return:
+        """
         self.ohe_index_mapping = {}
         headers = []
         for field, threshold in FEATURES_MIN_THRESHOLDS:
             index_mapping, header = create_ohe_index_with_header(data[field], field, threshold)
             self.ohe_index_mapping[field] = index_mapping
-            headers.append(header)
+            if self.__onehot:
+                headers.append(header)
+            else:
+                headers.append([field])
 
         for field in OTHER_CATEGORICAL_FEATURES:
             assert(field not in FEATURES_MIN_THRESHOLDS)    # just in case, to prevent duplicated huge one hot feature!
             index_mapping, header = create_ohe_index_with_header(data[field], field)
             self.ohe_index_mapping[field] = index_mapping
-            headers.append(header)
+            if self.__onehot:
+                headers.append(header)
+            else:
+                headers.append([field])
 
         index_mappings_by_depth, headers_by_depth = create_taxonomy_index(data[TARGET_TAXONOMY_FIELD])
         self.__taxonomy_max_depth = len(index_mappings_by_depth)
@@ -104,7 +117,11 @@ class FeaturesProcessor(object):
             mapping_name = f"tax{i}"
             tax_index_mapping = index_mappings_by_depth[i]
             self.ohe_index_mapping[mapping_name] = tax_index_mapping
+
+        if self.__onehot:
             headers.append(list(chain(*headers_by_depth)))
+        else:
+            headers.append([f"tax{i}" for i in range(len(index_mappings_by_depth))])
 
         numeric_headers = get_numeric_headers()
         headers.append(numeric_headers)
@@ -117,12 +134,21 @@ class FeaturesProcessor(object):
         return self
 
     def transform(self, data: pd.DataFrame) -> np.ndarray:
+        """
+
+        :param data:
+        :return:
+        """
         features = []
         categorical_features = list(map(itemgetter(0), FEATURES_MIN_THRESHOLDS)) + OTHER_CATEGORICAL_FEATURES
         for field in categorical_features:
             index_mapping = self.ohe_index_mapping[field]
-            ohe = create_ohe_features(data[field], index_mapping)
-            features.append(ohe)
+            if self.__onehot:
+                values = create_ohe_features(data[field], index_mapping)
+            else:
+                values = np.array([item if item in index_mapping else NON_FREQ_NAME for item in data[field]]).reshape(-1, 1)
+
+            features.append(values)
 
         # taxonomy features
         index_mappings_by_depth = []
@@ -130,8 +156,8 @@ class FeaturesProcessor(object):
             index_mapping = self.ohe_index_mapping[f"tax{i}"]
             index_mappings_by_depth.append(index_mapping)
 
-        ohe = create_taxonomy_features(data[TARGET_TAXONOMY_FIELD], index_mappings_by_depth)
-        features.append(ohe)
+        values = create_taxonomy_features(data[TARGET_TAXONOMY_FIELD], index_mappings_by_depth, self.__onehot)
+        features.append(values)
 
         numeric_features = process_numeric_features(data, NUMERIC_FEATURES)
         features.append(numeric_features)
@@ -200,15 +226,19 @@ def create_taxonomy_index(taxonomy_values: Sequence[str]) -> Tuple[List[Dict[str
     return mappings, full_header
 
 
-def create_taxonomy_features(taxonomy_values: Sequence[str], index_mappings_by_depth: List[Dict[str, int]]) -> np.ndarray:
+def create_taxonomy_features(taxonomy_values: Sequence[str], index_mappings_by_depth: List[Dict[str, int]], onehot: bool = False) -> np.ndarray:
     categories_by_hierarchy = get_categories_by_depth(taxonomy_values)
 
     ohe_sets = []
     for i in range(len(categories_by_hierarchy)):
         categories = categories_by_hierarchy[i]
         index_mapping = index_mappings_by_depth[i]
-        ohe = create_ohe_features(categories, index_mapping)
-        ohe_sets.append(ohe)
+        if onehot:
+            values = create_ohe_features(categories, index_mapping)
+        else:
+            values = np.array([item if item in index_mapping else NON_FREQ_NAME for item in categories]).reshape(-1, 1)
+
+        ohe_sets.append(values)
 
     tax_features = np.hstack(ohe_sets)
     return tax_features
@@ -229,8 +259,10 @@ def process_numeric_features(data: pd.DataFrame, numeric_fields: List[str]) -> n
     user_target_recs_ratio = data[USER_TARGET_RECS_FIELD].values / user_recs
     user_target_recs_ratio[user_recs == 0] = 0
 
-    features = [users_clicks_ratio.reshape(-1, 1), user_target_recs_ratio.reshape(-1, 1)]
-    features.append(data[numeric_fields].values)
+    features = [users_clicks_ratio.reshape(-1, 1),
+                user_target_recs_ratio.reshape(-1, 1),
+                data[numeric_fields].values
+                ]
     return np.hstack(features)
 
 
@@ -284,8 +316,7 @@ def get_part_of_day_index(hour: int) -> int:
 
 
 def get_hours_feature_header() -> Sequence[str]:
-    return [f"hour{i}" for i in range(NUM_DAYS_IN_WEEK)]\
-           + ["is_early_morning", "is_morning", "is_noon", "is_afternoon", "is_evening", "is_night"]
+    return ["is_early_morning", "is_morning", "is_noon", "is_afternoon", "is_evening", "is_night", "hour"]
 
 
 def process_hour_features(values: Sequence[int]) -> np.ndarray:
@@ -294,7 +325,7 @@ def process_hour_features(values: Sequence[int]) -> np.ndarray:
     for i, hour in enumerate(values):
         day_part = get_part_of_day_index(hour)
         features[i][day_part] = True
-        features[i][-1] = hour
+        features[i][-1] = int(hour)
 
     return features
 
