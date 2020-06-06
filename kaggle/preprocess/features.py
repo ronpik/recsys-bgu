@@ -98,13 +98,13 @@ class FeaturesProcessor(object):
             self.ohe_index_mapping[field] = index_mapping
             headers.append(header)
 
-        index_mappings_by_depth, header = create_taxonomy_index(data[TARGET_TAXONOMY_FIELD])
+        index_mappings_by_depth, headers_by_depth = create_taxonomy_index(data[TARGET_TAXONOMY_FIELD])
         self.__taxonomy_max_depth = len(index_mappings_by_depth)
         for i in range(len(index_mappings_by_depth)):
             mapping_name = f"tax{i}"
             tax_index_mapping = index_mappings_by_depth[i]
             self.ohe_index_mapping[mapping_name] = tax_index_mapping
-            headers.append(header)
+            headers.append(list(chain(*headers_by_depth)))
 
         numeric_headers = get_numeric_headers()
         headers.append(numeric_headers)
@@ -142,7 +142,8 @@ class FeaturesProcessor(object):
         return np.hstack(features)
 
     def fit_transform(self, data: pd.DataFrame) -> np.ndarray:
-        return self.fit(data).transform(data)
+        return self.fit(data)\
+            .transform(data)
 
 
 def create_ohe_index_with_header(values: Sequence[str],
