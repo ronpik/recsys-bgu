@@ -4,8 +4,9 @@ from typing import Tuple, Sequence, Set, Any, Dict, List
 
 import numpy as np
 import pandas as pd
-import sklearn
 
+from kaggle.preprocess.numeric import get_numeric_headers, process_numeric_features
+from kaggle.preprocess.temporal import VIEW_TIME_FIELD, get_temporal_headers, process_temporal_features
 from kaggle.preprocess.utils import filter_by_occurrence, to_one_hot_encoding, create_categories_index_mapping, \
     NON_FREQ_NAME
 
@@ -34,46 +35,10 @@ OTHER_CATEGORICAL_FEATURES = [
     "os_family",
 ]
 
-NUMERIC_FEATURES = [
-    "empiric_calibrated_recs",
-    "empiric_clicks",
-    "user_target_recs",
-    "user_clicks",
-    "user_recs"
-]
-
 TARGET_TAXONOMY_FIELD = "target_item_taxonomy"
 NO_TAX_CATEGORY_VALUE = "NO_CATEGORY"
-USER_RECS_FIELD = "user_recs"
-USER_TARGET_RECS_FIELD = "user_target_recs"
-USER_CLICKS_FIELD = "user_clicks"
-VIEW_TIME_FIELD = "page_view_start_time"
-DAY_FIELD = "day_of_week"
-HOUR_FIELD = "time_of_day"
-GMT_FIELD = "gmt_offset"
+
 LABEL = "is_click"
-
-NUM_DAYS_IN_WEEK = 7
-WEEKEND_BEGIN_DAY = 6
-NUM_PARTS_OF_DAY = 6
-
-#parts of the day
-EARLY_MORNING = 0
-EARLY_MORNING_RANGE = range(2,6)
-
-MORNING = 1
-MORNING_RANGE = range(6, 11)
-
-NOON = 2
-NOON_RANGE = range(11, 15)
-
-AFTERNOON = 3
-AFTERNOON_RANGE = range(15, 19)
-
-EVENING = 4
-EVENING_RANGE = range(19, 23)
-
-NIGHT = 5
 
 
 class FeaturesProcessor(object):
@@ -159,7 +124,7 @@ class FeaturesProcessor(object):
         values = create_taxonomy_features(data[TARGET_TAXONOMY_FIELD], index_mappings_by_depth, self.__onehot)
         features.append(values)
 
-        numeric_features = process_numeric_features(data, NUMERIC_FEATURES)
+        numeric_features = process_numeric_features(data)
         features.append(numeric_features)
 
         temporal_features = process_temporal_features(data, self.page_view_min_time)
@@ -242,93 +207,3 @@ def create_taxonomy_features(taxonomy_values: Sequence[str], index_mappings_by_d
 
     tax_features = np.hstack(ohe_sets)
     return tax_features
-
-
-def get_numeric_headers() -> List[str]:
-    numeric_headers = ["users_clicks_ratio", "user_target_recs_ratio"]
-    numeric_headers.extend(NUMERIC_FEATURES)
-    return numeric_headers
-
-
-def process_numeric_features(data: pd.DataFrame, numeric_fields: List[str]) -> np.ndarray:
-    user_recs = data[USER_RECS_FIELD].values + 1
-
-    users_clicks_ratio = data[USER_CLICKS_FIELD].values / user_recs
-    users_clicks_ratio[user_recs == 0] = 0
-
-    user_target_recs_ratio = data[USER_TARGET_RECS_FIELD].values / user_recs
-    user_target_recs_ratio[user_recs == 0] = 0
-
-    features = [users_clicks_ratio.reshape(-1, 1),
-                user_target_recs_ratio.reshape(-1, 1),
-                data[numeric_fields].values
-                ]
-    return np.hstack(features)
-
-
-def get_temporal_headers():
-    return ["ad_view_time"]\
-           + get_weekday_feature_header()\
-           + get_hours_feature_header()\
-           + ["gmt_offset"]
-
-
-def process_temporal_features(data: pd.DataFrame, min_view_time: int) -> np.ndarray:
-    view_time_feature = process_view_time_features(data[VIEW_TIME_FIELD], min_view_time)
-    weekday_features = process_week_days_features(data[DAY_FIELD])
-    hour_features = process_hour_features(data[HOUR_FIELD])
-    gmt_feature = process_gmt_offset_features(data[GMT_FIELD])
-    return np.hstack((view_time_feature, weekday_features, hour_features, gmt_feature))
-
-
-def process_view_time_features(values: Sequence[int], min_value: int) -> np.ndarray:
-    return (np.asarray(values) - min_value).reshape(-1, 1)
-
-
-def get_weekday_feature_header() -> Sequence[str]:
-    return [f"day{i}" for i in range(NUM_DAYS_IN_WEEK)] + ["is_weekend"]
-
-
-def process_week_days_features(values: Sequence[str]) -> np.ndarray:
-    num_features = NUM_DAYS_IN_WEEK + 1 # plus another feature for 'is_weekend'
-    ohe = np.zeros((len(values), num_features), dtype=bool)
-    for i, day in enumerate(values):
-        ohe[i][day] = True
-        if i >= WEEKEND_BEGIN_DAY:
-            ohe[i][-1] = True
-
-    return ohe
-
-
-def get_part_of_day_index(hour: int) -> int:
-    if hour in EARLY_MORNING_RANGE:
-        return EARLY_MORNING
-    if hour in MORNING_RANGE:
-        return MORNING
-    if hour in NOON_RANGE:
-        return NOON
-    if hour in AFTERNOON_RANGE:
-        return AFTERNOON
-    if hour in EVENING_RANGE:
-        return EVENING
-
-    return NIGHT
-
-
-def get_hours_feature_header() -> Sequence[str]:
-    return ["is_early_morning", "is_morning", "is_noon", "is_afternoon", "is_evening", "is_night", "hour"]
-
-
-def process_hour_features(values: Sequence[int]) -> np.ndarray:
-    num_features = NUM_PARTS_OF_DAY + 1 # another feature contains the original jour values (as an ordinal variable).
-    features = np.zeros((len(values), num_features), dtype=np.uint8)
-    for i, hour in enumerate(values):
-        day_part = get_part_of_day_index(hour)
-        features[i][day_part] = True
-        features[i][-1] = int(hour)
-
-    return features
-
-
-def process_gmt_offset_features(values: Sequence[int]) -> np.ndarray:
-    return np.asarray(values).reshape(-1, 1)
