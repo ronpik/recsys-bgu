@@ -19,6 +19,10 @@ def filter_by_occurrence(values: Sequence[str], min_count: int) -> pd.Series:
 def create_categories_index_mapping(values: Sequence[str]) -> Dict[str, int]:
     counts = Counter(values)  # used to sort indices by frequency, not really necessary
     index_mapping = {item: i for i, item in enumerate(counts)}
+
+    if NON_FREQ_NAME not in index_mapping:
+        index_mapping[NON_FREQ_NAME] = len(index_mapping)
+
     return index_mapping
 
 

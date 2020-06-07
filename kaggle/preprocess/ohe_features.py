@@ -137,7 +137,7 @@ def create_ohe_index_with_header(values: Sequence[str],
 
 def create_ohe_features(values: Sequence[str], categories_index_mapping: Dict[str, int]) -> csr_matrix:
     num_categories = len(categories_index_mapping)
-    non_freq_item_index = categories_index_mapping.get(NON_FREQ_NAME)
+    non_freq_item_index = categories_index_mapping[NON_FREQ_NAME]
     num_rows = len(values)
     row_numbers = np.arange(num_rows, dtype=np.int)
     col_numbers = np.array([categories_index_mapping.get(item, non_freq_item_index) for item in values])
