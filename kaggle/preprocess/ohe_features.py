@@ -4,10 +4,11 @@ from typing import Tuple, Sequence, Set, Any, Dict, List
 
 import numpy as np
 import pandas as pd
+from scipy.sparse import csr_matrix, hstack as sparse_hstack
 
 from kaggle.preprocess.numeric import get_numeric_headers, process_numeric_features
 from kaggle.preprocess.temporal import VIEW_TIME_FIELD, get_temporal_headers, process_temporal_features
-from kaggle.preprocess.utils import filter_by_occurrence, to_one_hot_encoding, create_categories_index_mapping, \
+from kaggle.preprocess.utils import filter_by_occurrence, create_categories_index_mapping, \
     NON_FREQ_NAME
 
 # todo replace dict by list of tuples to maintain order in all python versions
@@ -41,17 +42,15 @@ NO_TAX_CATEGORY_VALUE = "NO_CATEGORY"
 LABEL = "is_click"
 
 
-class FeaturesProcessor(object):
-    def __init__(self, onehot: bool = False):
-        self.__onehot = onehot
-
+class OHEFeaturesProcessor(object):
+    def __init__(self):
         # map between field and category name to the index in the one hot encoding og this feature
         self.ohe_index_mapping: Dict[str, Dict[str, int]] = None
         self.page_view_min_time: int = None
         self.features_names: List[str] = None
         self.__taxonomy_max_depth: int = None
 
-    def fit(self, data: pd.DataFrame) -> 'FeaturesProcessor':
+    def fit(self, data: pd.DataFrame) -> 'OHEFeaturesProcessor':
         """
 
         :param data:
@@ -62,19 +61,13 @@ class FeaturesProcessor(object):
         for field, threshold in FEATURES_MIN_THRESHOLDS:
             index_mapping, header = create_ohe_index_with_header(data[field], field, threshold)
             self.ohe_index_mapping[field] = index_mapping
-            if self.__onehot:
-                headers.append(header)
-            else:
-                headers.append([field])
+            headers.append(header)
 
         for field in OTHER_CATEGORICAL_FEATURES:
             assert(field not in FEATURES_MIN_THRESHOLDS)    # just in case, to prevent duplicated huge one hot feature!
             index_mapping, header = create_ohe_index_with_header(data[field], field)
             self.ohe_index_mapping[field] = index_mapping
-            if self.__onehot:
-                headers.append(header)
-            else:
-                headers.append([field])
+            headers.append(header)
 
         index_mappings_by_depth, headers_by_depth = create_taxonomy_index(data[TARGET_TAXONOMY_FIELD])
         self.__taxonomy_max_depth = len(index_mappings_by_depth)
@@ -83,10 +76,7 @@ class FeaturesProcessor(object):
             tax_index_mapping = index_mappings_by_depth[i]
             self.ohe_index_mapping[mapping_name] = tax_index_mapping
 
-        if self.__onehot:
-            headers.append(list(chain(*headers_by_depth)))
-        else:
-            headers.append([f"tax{i}" for i in range(len(index_mappings_by_depth))])
+        headers.append(list(chain(*headers_by_depth)))
 
         numeric_headers = get_numeric_headers()
         headers.append(numeric_headers)
@@ -98,7 +88,7 @@ class FeaturesProcessor(object):
         self.features_names = list(chain(*headers))
         return self
 
-    def transform(self, data: pd.DataFrame) -> np.ndarray:
+    def transform(self, data: pd.DataFrame) -> csr_matrix:
         """
 
         :param data:
@@ -108,11 +98,7 @@ class FeaturesProcessor(object):
         categorical_features = list(map(itemgetter(0), FEATURES_MIN_THRESHOLDS)) + OTHER_CATEGORICAL_FEATURES
         for field in categorical_features:
             index_mapping = self.ohe_index_mapping[field]
-            if self.__onehot:
-                values = create_ohe_features(data[field], index_mapping)
-            else:
-                values = np.array([item if item in index_mapping else NON_FREQ_NAME for item in data[field]]).reshape(-1, 1)
-
+            values = create_ohe_features(data[field], index_mapping)
             features.append(values)
 
         # taxonomy features
@@ -121,7 +107,7 @@ class FeaturesProcessor(object):
             index_mapping = self.ohe_index_mapping[f"tax{i}"]
             index_mappings_by_depth.append(index_mapping)
 
-        values = create_taxonomy_features(data[TARGET_TAXONOMY_FIELD], index_mappings_by_depth, self.__onehot)
+        values = create_taxonomy_features(data[TARGET_TAXONOMY_FIELD], index_mappings_by_depth)
         features.append(values)
 
         numeric_features = process_numeric_features(data)
@@ -130,9 +116,9 @@ class FeaturesProcessor(object):
         temporal_features = process_temporal_features(data, self.page_view_min_time)
         features.append(temporal_features)
 
-        return np.hstack(features)
+        return sparse_hstack(features, format="csr")
 
-    def fit_transform(self, data: pd.DataFrame) -> np.ndarray:
+    def fit_transform(self, data: pd.DataFrame) -> csr_matrix:
         return self.fit(data)\
             .transform(data)
 
@@ -149,15 +135,15 @@ def create_ohe_index_with_header(values: Sequence[str],
     return index_mapping, header
 
 
-def create_ohe_features(values: Sequence[str], categories_index_mapping: Dict[str, int]) -> np.ndarray:
-    num_unique = len(categories_index_mapping)
-    non_freq_item_index = categories_index_mapping.get(NON_FREQ_NAME)
-    ohe = np.zeros((len(values), num_unique), dtype=bool)
-    for i, item in enumerate(values):
-        item_index = categories_index_mapping.get(item, non_freq_item_index)
-        ohe[i][item_index] = True
-
-    return ohe
+def create_ohe_features(values: Sequence[str], categories_index_mapping: Dict[str, int]) -> csr_matrix:
+    num_categories = len(categories_index_mapping)
+    non_freq_item_index = categories_index_mapping[NON_FREQ_NAME]
+    num_rows = len(values)
+    row_numbers = np.arange(num_rows, dtype=np.int)
+    col_numbers = np.array([categories_index_mapping.get(item, non_freq_item_index) for item in values])
+    ones = np.ones((num_rows,))
+    sparse_mat = csr_matrix((ones, (row_numbers, col_numbers)), shape=(num_rows, num_categories))
+    return sparse_mat
 
 
 def get_categories_by_depth(taxonomy_values: Sequence[str]) -> List[List[str]]:
@@ -191,19 +177,14 @@ def create_taxonomy_index(taxonomy_values: Sequence[str]) -> Tuple[List[Dict[str
     return mappings, full_header
 
 
-def create_taxonomy_features(taxonomy_values: Sequence[str], index_mappings_by_depth: List[Dict[str, int]], onehot: bool = False) -> np.ndarray:
+def create_taxonomy_features(taxonomy_values: Sequence[str], index_mappings_by_depth: List[Dict[str, int]]) -> csr_matrix:
     categories_by_hierarchy = get_categories_by_depth(taxonomy_values)
-
     ohe_sets = []
     for i in range(len(categories_by_hierarchy)):
         categories = categories_by_hierarchy[i]
         index_mapping = index_mappings_by_depth[i]
-        if onehot:
-            values = create_ohe_features(categories, index_mapping)
-        else:
-            values = np.array([item if item in index_mapping else NON_FREQ_NAME for item in categories]).reshape(-1, 1)
-
+        values = create_ohe_features(categories, index_mapping)
         ohe_sets.append(values)
 
-    tax_features = np.hstack(ohe_sets)
+    tax_features = sparse_hstack(ohe_sets, format="csr")
     return tax_features
