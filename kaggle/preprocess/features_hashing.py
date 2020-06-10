@@ -72,13 +72,13 @@ class FeaturesHashingProcessor(object):
         headers = []
         for field, threshold in FEATURES_MIN_THRESHOLDS:
             hasher = FeatureFilterHasher(feature_prefix=field, min_occurrence_threshold=threshold)
-            self.hashers[field] = hasher.fit(data[field])
+            self.hashers[field] = hasher.fit(data[field].astype(str))
             headers.append(hasher.features_names)
 
         for field in OTHER_CATEGORICAL_FEATURES:
             assert(field not in FEATURES_MIN_THRESHOLDS)    # just in case, to prevent duplicated huge one hot feature!
             hasher = FeatureFilterHasher(feature_prefix=field)
-            self.hashers[field] = hasher.fit(data[field])
+            self.hashers[field] = hasher.fit(data[field].astype(str))
             headers.append(hasher.features_names)
 
         tax_hashers, tax_features_names = create_taxonomy_hashers(data[TARGET_TAXONOMY_FIELD])
@@ -110,7 +110,7 @@ class FeaturesHashingProcessor(object):
         categorical_features = list(map(itemgetter(0), FEATURES_MIN_THRESHOLDS)) + OTHER_CATEGORICAL_FEATURES
         for field in categorical_features:
             print(field)
-            categories = np.asarray(data[field]).reshape(-1, 1)
+            categories = np.asarray(data[field].astype(str)).reshape(-1, 1)
             values = self.hashers[field].transform(categories)
             features.append(values)
 
