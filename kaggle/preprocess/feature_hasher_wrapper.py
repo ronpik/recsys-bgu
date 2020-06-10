@@ -23,10 +23,14 @@ class FeatureFilterHasher(object):
         if (self.min_occurrence_threshold > 0):
             values = filter_by_occurrence(values, self.min_occurrence_threshold)
 
-        self.num_features = np.log2(len(values))
+        self.num_features = derive_num_features(len(values))
         self.hasher = FeatureHasher(n_features=self.num_features, **self.hasher_kwargs)
         self.features_names = [f"{self.feature_prefix}:{i}" for i in range(self.num_features)]
         return self
 
     def transform(self, values: Sequence[str]) -> scipy.sparse:
         return self.hasher.transform(values)
+
+
+def derive_num_features(num_categories: int) -> int:
+    return int(np.sqrt(num_categories))

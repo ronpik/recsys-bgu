@@ -36,17 +36,21 @@ OTHER_CATEGORICAL_FEATURES = [
     "publisher_id_hash",
     "source_item_type",
     "browser_platform",
-    "os_family",
 ]
 
 TARGET_TAXONOMY_FIELD = "target_item_taxonomy"
 NO_TAX_CATEGORY_VALUE = "NO_CATEGORY"
 
+OS_FIELD = "os_family"
+NUM_OS_TYPES = 7
+
 LABEL = "is_click"
 
 
 class FeaturesHashingProcessor(object):
-    def __init__(self):
+    def __init__(self, fillna: bool = True):
+        self.fillna = fillna
+
         # map between field and category name to the index in the one hot encoding og this feature
         self.page_view_min_time: int = None
         self.features_names: List[str] = None
@@ -59,6 +63,11 @@ class FeaturesHashingProcessor(object):
         :param data:
         :return:
         """
+        if self.fillna:
+            categorical_features = list(map(itemgetter(0), FEATURES_MIN_THRESHOLDS)) + OTHER_CATEGORICAL_FEATURES
+            categorical_features_to_fill = {c: NON_FREQ_NAME for c in categorical_features}
+            data.fillna(categorical_features_to_fill, inplace=True)
+
         self.hashers = {}
         headers = []
         for field, threshold in FEATURES_MIN_THRESHOLDS:
@@ -79,6 +88,8 @@ class FeaturesHashingProcessor(object):
             mapping_name = f"tax{i}"
             self.hashers[mapping_name] = tax_hashers[i]
 
+        headers.append(get_os_feature_names())
+
         numeric_headers = get_numeric_headers()
         headers.append(numeric_headers)
 
@@ -98,6 +109,7 @@ class FeaturesHashingProcessor(object):
         features: List[scipy.sparse.spmatrix] = []
         categorical_features = list(map(itemgetter(0), FEATURES_MIN_THRESHOLDS)) + OTHER_CATEGORICAL_FEATURES
         for field in categorical_features:
+            print(field)
             categories = np.asarray(data[field]).reshape(-1, 1)
             values = self.hashers[field].transform(categories)
             features.append(values)
@@ -106,6 +118,9 @@ class FeaturesHashingProcessor(object):
         hashers_by_depth = [self.hashers[f"tax{i}"] for i in range(self.__taxonomy_max_depth)]
         values = create_taxonomy_features(data[TARGET_TAXONOMY_FIELD], hashers_by_depth)
         features.append(values)
+
+        os_features = encode_os_feature(data[OS_FIELD])
+        features.append(os_features)
 
         numeric_features = process_numeric_features(data)
         features.append(numeric_features)
@@ -161,3 +176,15 @@ def create_taxonomy_features(taxonomy_values: Sequence[str], hashers_by_depth: L
 
     tax_features = sparse_hstack(features_sets, format="csr")
     return tax_features
+
+
+def get_os_feature_names() -> Sequence[str]:
+    return [f"os_{i}" for i in range(NUM_OS_TYPES)]
+
+
+def encode_os_feature(values: Sequence[int]) -> np.ndarray:
+    ohe = np.zeros((len(values), NUM_OS_TYPES), dtype=np.int8)
+    for i, os_type in enumerate(values):
+        ohe[i][os_type] = True
+
+    return ohe
