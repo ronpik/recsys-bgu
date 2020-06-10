@@ -57,7 +57,7 @@ def process_week_days_features(values: Sequence[str]) -> np.ndarray:
     num_features = NUM_DAYS_IN_WEEK + 1 # plus another feature for 'is_weekend'
     ohe = np.zeros((len(values), num_features), dtype=bool)
     for i, day in enumerate(values):
-        ohe[i][day] = True
+        ohe[i][int(day)] = True
         if i >= WEEKEND_BEGIN_DAY:
             ohe[i][-1] = True
 
